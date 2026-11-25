@@ -98,6 +98,11 @@ See [CHANGELOG.md](CHANGELOG.md) for development history. Older instructions the
 
 Project direction, feature decisions and live testing: lolreplay's creator and contributors. Implementation, documentation, translation drafts and automated tests were developed with assistance from ChatGPT (OpenAI). Translations have not all been reviewed by native speakers.
 
-Thanks to the GPU Screen Recorder, FFmpeg, Qt/PySide6, PipeWire, Hyprland and Niri projects. These are separate dependencies with their own licenses and are not bundled here.
+Thanks to the GPU Screen Recorder, FFmpeg, Qt/PySide6, PipeWire, Hyprland and Niri projects. These are separate 
+dependencies with their own licenses and are not bundled here.
 
+- Project creator, design direction and testing: repository owner.
+- AI-assisted development: ChatGPT by OpenAI.
+
+Built for the Linux gaming community.
 The software is distributed under the [MIT License](LICENSE). The emblem is AI-generated for lolreplay, inspired by gaming visual aesthetics; it replaces the previous FreeBSD-derived artwork, which is not included. No affiliation with FreeBSD, ASUS ROG or the dependency projects is implied. No trademark clearance is claimed.
