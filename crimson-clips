@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Crimson Clips 0.9 - a small, local replay controller for GPU Screen Recorder.
+
+Not affiliated with Medal.tv or GPU Screen Recorder.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import lolreplay_performance as perf
+import lolreplay_audio as audio
+import lolreplay_compositor as compositor
+import lolreplay_storage as storage
+import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
+
+APP = "Crimson Clips"
+CONFIG = Path.home() / ".config" / "crimson-clips" / "config.json"
+LOG = Path.home() / ".local" / "state" / "crimson-clips" / "recorder.log"
+SOCKET = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "crimson-clips.sock"
+DEFAULT = {
+    "save_seconds": 30,
+    "buffer_seconds": 1200,
+    "fps": 60,
+    "bitrate_kbps": 12000,
+    "microphone": False,
+    "microphone_source": "auto",  # Identificador de dispositivo de GSR o auto para pactl
+    "audio_output": "auto",
+    "output_dir": str(Path.home() / "Videos" / "CrimsonClips"),
+    "capture": "screen",
+    "niri_capture": "portal",
+}
+def validate_duration(cfg, seconds):
+    limit=int(cfg['buffer_seconds'])
+    if not 2 <= seconds <= limit:
+        raise RuntimeError(f'La duración debe estar entre 2 y {limit} segundos')
+    return seconds
+
+
+def config_load():
+    if CONFIG.exists():
+        try:
+            data = json.loads(CONFIG.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("El archivo JSON no contiene un objeto")
+            return storage.validate_config({**DEFAULT, **data})
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise RuntimeError(f"Config inválida ({CONFIG}): {exc}") from exc
+    return DEFAULT.copy()
+
+
+def config_save(config):
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    if CONFIG.exists():
+        backup = CONFIG.with_name("config.json.bak-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+        shutil.copy2(CONFIG, backup)
+    temp = CONFIG.with_suffix(".json.tmp")
+    temp.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp.replace(CONFIG)
+
+
+def ipc(*args, checked=False, quiet=False):
+    if not shutil.which('gsr-cli'):
+        raise RuntimeError('Falta gsr-cli. Instala o actualiza gpu-screen-recorder.')
+    cmd = ["gsr-cli", "-ipc", str(SOCKET), *map(str, args)]
+    try:
+        cp = subprocess.run(cmd, text=True, capture_output=True, timeout=90 if args and args[0]=='save-replay' else 4)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError('El grabador no responde (timeout). Revisa el log; no se ha confirmado su estado.') from exc
+    if args and args[0]=='status' and cp.returncode not in (0,1):
+        raise RuntimeError((cp.stderr or cp.stdout).strip() or 'Estado del grabador desconocido')
+    if checked and cp.returncode:
+        raise RuntimeError((cp.stderr or cp.stdout).strip() or "El grabador no responde")
+    if cp.returncode != 0:
+        return None
+    if not quiet and cp.stdout.strip():
+        print(cp.stdout.strip())
+    return cp.stdout.strip()
+
+
+def is_running():
+    return ipc("status", quiet=True) is not None
+
+
+def alert(title, body):
+    if shutil.which('notify-send'):
+        try: subprocess.Popen(['notify-send','-a',APP,title,body],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        except OSError: pass
+
+
+def output_check(cfg, create_default=False):
+    path = Path(os.path.expandvars(os.path.expanduser(cfg["output_dir"])))
+    if not path.is_absolute():
+        raise RuntimeError("La carpeta de clips debe ser una ruta absoluta")
+    if create_default and path == Path(DEFAULT["output_dir"]):
+        path.mkdir(parents=True, exist_ok=True)
+    if not path.is_dir():
+        raise RuntimeError(f"No existe la carpeta de clips: {path}. ¿Está montado el disco?")
+    if not os.access(path, os.W_OK | os.X_OK):
+        raise RuntimeError(f"No tienes permisos de escritura en: {path}")
+    if path != Path(DEFAULT["output_dir"]) and not cfg.get("library_id"):
+        raise RuntimeError("Select the clip folder again in Settings to register the disk safely")
+    return storage.check(path, cfg.get("library_id"))
+
+
+def resolve_microphone(cfg):
+    """Elegir un identificador concreto de micro; evita el alias mutable default_input."""
+    configured = str(cfg.get("microphone_source", "auto")).strip()
+    if not configured:
+        raise RuntimeError("El identificador de micrófono está vacío")
+    if configured == "auto":
+        if not shutil.which("pactl"):
+            raise RuntimeError("Necesitas pactl para detectar el micrófono. Selecciona uno con mic-source.")
+        result = subprocess.run(["pactl", "get-default-source"], capture_output=True, text=True)
+        if result.returncode or not result.stdout.strip():
+            raise RuntimeError("No puedo determinar el micrófono predeterminado con pactl")
+        configured = result.stdout.strip()
+    if configured not in dict(audio.devices()):
+        raise RuntimeError("Selected microphone unavailable: "+configured)
+    return configured
+
+
+def start(cfg):
+    if is_running():
+        print("✅ El replay ya está funcionando")
+        return 0
+    if not shutil.which("gpu-screen-recorder"):
+        raise RuntimeError("Falta gpu-screen-recorder. Ejecuta: sudo pacman -S --needed gpu-screen-recorder")
+    if not shutil.which("gsr-cli"):
+        raise RuntimeError("Tu versión no incluye gsr-cli; actualiza gpu-screen-recorder")
+    out = output_check(cfg, create_default=True)
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    sockparent = SOCKET.parent
+    if not sockparent.exists():
+        raise RuntimeError(f"No existe XDG_RUNTIME_DIR: {sockparent}. Ejecuta dentro de tu sesión gráfica.")
+    if SOCKET.exists():
+        # Only our own socket path; no running server was detected above.
+        SOCKET.unlink()
+    target = compositor.capture(cfg)
+    # Usar un identificador real: default_input puede cambiar de dispositivo al vuelo.
+    audio.cleanup()
+    output_device = audio.output_device(cfg.get("audio_output", "auto"))
+    # Prepare storage before creating the virtual audio device.
+    capture_dir = storage.staging() if cfg.get("library_id") else out
+    mic_device = audio.bridge(resolve_microphone(cfg)) if cfg["microphone"] else None
+    # Mix system audio with the isolated microphone monitor for ordinary playback.
+    audio_args = ["-a", output_device + ("|"+mic_device if mic_device else "")]
+    args = [
+        "gpu-screen-recorder", "-w", target, "-f", str(cfg["fps"]),
+        "-c", "mp4", "-k", "h264", "-r", str(cfg["buffer_seconds"]),
+        "-replay-storage", "ram", "-bm", "cbr", "-q", str(cfg["bitrate_kbps"]),
+        *audio_args,
+        "-ipc", str(SOCKET), "-o", str(capture_dir),
+    ]
+    p = None
+    try:
+        with LOG.open("a", encoding="utf-8") as log:
+            log.write(f"\n\n[{datetime.datetime.now().isoformat(timespec='seconds')}] START: {args!r}\n")
+            log.flush()
+            p = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                                 start_new_session=True, close_fds=True)
+        if target == "portal":
+            print("Select your monitor in the screen sharing dialog (up to 90 seconds).", flush=True)
+        deadline=time.monotonic()+(90 if target=='portal' else 8)
+        while time.monotonic()<deadline:
+            time.sleep(.4)
+            if p.poll() is not None:
+                raise RuntimeError(f"El grabador terminó (código {p.returncode}). Lee: {LOG}")
+            if is_running():
+                if mic_device: audio.watch(p.pid)
+                print(f"✅ Replay activo · {cfg['buffer_seconds']} s de búfer · {cfg['fps']} FPS")
+                print(f"📁 Clips en: {out}")
+                print(f"🎙️ Micro: {mic_device if mic_device else 'desactivado'}")
+                print("ℹ️ Deja pasar unos segundos antes de guardar el primer clip.")
+                return 0
+        raise RuntimeError(f"El grabador no confirmó el arranque. Revisa el log: {LOG}")
+    except (Exception, KeyboardInterrupt):
+        if p is not None and p.poll() is None:
+            p.terminate()
+            try: p.wait(timeout=5)
+            except subprocess.TimeoutExpired: p.kill(); p.wait()
+        audio.cleanup()
+        raise
+
+
+def save(cfg, seconds):
+    if not is_running():
+        raise RuntimeError("El replay no está activo. Ejecuta: crimson-clips start")
+    seconds = validate_duration(cfg, int(cfg["save_seconds"]) if seconds is None else seconds)
+    # If the registered disk is absent, still save the replay to local recovery.
+    if not cfg.get("library_id"): output_check(cfg)
+    clip = ipc("save-replay", seconds, checked=True)
+    if cfg.get("library_id"):
+        source=Path(clip).resolve()
+        if source.parent!=storage.staging().resolve() or not source.is_file():
+            raise RuntimeError("Unexpected recorder output; check recovery folder: "+str(storage.staging()))
+        try:
+            out=output_check(cfg); target=out/source.name
+            if target.exists(): target=out/(source.stem+"-"+__import__("uuid").uuid4().hex[:8]+source.suffix)
+            storage.publish(source,target,cfg["library_id"]); clip=str(target)
+        except (OSError,ValueError,RuntimeError) as exc:
+            alert("lolreplay: recovered locally",str(source))
+            print(f"Disk unavailable or transfer failed: {exc}\nClip retained locally: {source}")
+            return 0
+    if not clip or not Path(clip).is_file() or Path(clip).stat().st_size<=0:
+        raise RuntimeError('No se ha confirmado un archivo de vídeo válido. Revisa el log y la carpeta de clips.')
+    print(f"🎬 Clip guardado: {clip}")
+    alert("Crimson Clips", f"Clip de {seconds} segundos guardado")
+    return 0
+
+
+def stop():
+    if not is_running():
+        audio.cleanup()
+        print("ℹ️ Replay no activo")
+        return 0
+    ipc('stop', checked=True)
+    for _ in range(10):
+        if not is_running(): break
+        time.sleep(.25)
+    else: raise RuntimeError('El grabador todavía está activo. No se ha desmontado el audio; reintenta Stop.')
+    audio.cleanup()
+    print("⏹️ Replay detenido")
+    return 0
+
+
+def doctor(cfg):
+    print("=== LOLREPLAY 0.9 / DIAGNÓSTICO ===")
+    print("Compositor:", compositor.detect())
+    print("Capture:", compositor.capture(cfg))
+    print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
+    print("Escritorio:", os.environ.get("XDG_CURRENT_DESKTOP", "(desconocido)"))
+    for exe in ("gpu-screen-recorder", "gsr-cli", "hyprctl", "niri", "pactl", "notify-send"):
+        print(f"{exe}: {shutil.which(exe) or 'NO ENCONTRADO'}")
+    try:
+        out = output_check(cfg)
+        print("Destino:", out)
+        print("Espacio libre:", f"{shutil.disk_usage(out).free / (1024 ** 3):.1f} GiB")
+    except Exception as exc:
+        print("Destino:", exc)
+    print("Replay:", "ACTIVO" if is_running() else "DETENIDO")
+    print("Duración F8:", cfg["save_seconds"], "s")
+    print("Micrófono:", "ON" if cfg["microphone"] else "OFF")
+    print("Micro configurado:", cfg.get("microphone_source", "auto"))
+    print("Salida configurada:", cfg.get("audio_output", "auto"))
+    if cfg["microphone"]:
+        try:
+            print("Micro seleccionado:", resolve_microphone(cfg))
+        except RuntimeError as exc:
+            print("Micro (aviso):", exc)
+    print("Log:", LOG)
+    if shutil.which("pactl"):
+        result = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("Salida de audio:", result.stdout.strip())
+    return 0
+
+
+def temporary_bind():
+    if compositor.detect() == "niri":
+        raise RuntimeError("Niri: use lolreplay niri-bind for the persistent F8 binding.")
+    if not shutil.which("hyprctl"):
+        raise RuntimeError("No se encontró hyprctl. El atajo F8 de esta prueba es para Hyprland.")
+    found = subprocess.run(["hyprctl", "binds", "-j"], capture_output=True, text=True)
+    if found.returncode == 0:
+        try:
+            existing = [b for b in json.loads(found.stdout) if str(b.get("key", "")).upper() == "F8" and not b.get("modmask")]
+        except (json.JSONDecodeError, TypeError):
+            existing = []
+        if existing:
+            raise RuntimeError("Ya hay un atajo F8 sin modificadores en Hyprland. No lo sobrescribo. Revisa 'hyprctl binds -j'.")
+    command = f", F8, exec, {Path(__file__).resolve()} save"
+    result = subprocess.run(["hyprctl", "keyword", "bind", command], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout).strip())
+    print("✅ Atajo F8 activado hasta que reinicies/recargues Hyprland")
+    print("Prueba pulsar F8 tras arrancar el replay.")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Crimson Clips 0.9 - Replay local para Hyprland y Niri")
+    sub = parser.add_subparsers(dest="command", required=True)
+    for cmd in ("start", "stop", "status", "doctor", "bind-temporary", "config"):
+        sub.add_parser(cmd)
+    bind = sub.add_parser("niri-bind", help="Install F8 in Niri after validation; backup included")
+    bind.add_argument("--config", help="Path to active config.kdl")
+    sub.add_parser("niri-bind-print", help="Print the F8 line for the Niri binds block")
+    nc = sub.add_parser("niri-capture", help="Select Niri capture mode")
+    nc.add_argument("mode", choices=("portal", "screen"))
+    profile = sub.add_parser("profile", help="Set capture quality while replay is stopped")
+    profile.add_argument("name", choices=tuple(perf.PROFILES))
+    buffer = sub.add_parser("buffer", help="Set RAM replay window in seconds (30–1200)")
+    buffer.add_argument("seconds", type=int)
+    saving = sub.add_parser("save", help="Guardar replay (por defecto, el de config)")
+    saving.add_argument("seconds", nargs="?", type=int)
+    dur = sub.add_parser("duration", help="Cambiar duración predeterminada de F8")
+    dur.add_argument("seconds", type=int)
+    mic = sub.add_parser("mic", help="Activar o desactivar micrófono; requiere reiniciar replay")
+    mic.add_argument("state", choices=("on", "off"))
+    source = sub.add_parser("mic-source", help="Elegir micrófono concreto (o auto)")
+    source.add_argument("device")
+    output = sub.add_parser("audio-output", help="Select recorded playback device (or auto)")
+    output.add_argument("device")
+    directory = sub.add_parser("directory", help="Elegir carpeta existente para clips")
+    directory.add_argument("path")
+    args = parser.parse_args()
+    lock=None
+    try:
+        if args.command not in ('status','doctor','config'):
+            LOG.parent.mkdir(parents=True,exist_ok=True)
+            lock=(LOG.parent/'engine.lock').open('a')
+            deadline=time.monotonic()+5
+            while True:
+                try:
+                    fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB); break
+                except BlockingIOError:
+                    if time.monotonic()>=deadline: raise RuntimeError('Otra operación de lolreplay sigue en curso. Reintenta en unos segundos.')
+                    time.sleep(.1)
+        if args.command in ("mic","mic-source","audio-output","directory","niri-capture","profile","buffer") and is_running():
+            raise RuntimeError("Stop replay before changing capture, audio or storage (buffer will reset).")
+        # Status and stop must work even if the settings file is damaged.
+        if args.command == 'status':
+            running=is_running()
+            print('✅ Replay activo' if running else '⏹️ Replay detenido')
+            return 0 if running else 1
+        if args.command == 'stop': return stop()
+        cfg = config_load()
+        if args.command == "niri-bind-print":
+            print(compositor.binding_line(Path(__file__).with_name("lolreplay"))); return 0
+        if args.command == "niri-bind":
+            print(compositor.install_niri_bind(Path(__file__).with_name("lolreplay"),args.config)); return 0
+        if args.command == "niri-capture":
+            cfg["niri_capture"]=args.mode; config_save(cfg); print("Niri capture:",args.mode); return 0
+        if args.command == "profile":
+            cfg=perf.set_profile(cfg,args.name); config_save(cfg)
+            print(f"Capture: {cfg['fps']} FPS · {cfg['bitrate_kbps']} kbps"); return 0
+        if args.command == "buffer":
+            cfg=perf.set_buffer(cfg,args.seconds); config_save(cfg)
+            print(f"Buffer: {cfg['buffer_seconds']} s · F8: {cfg['save_seconds']} s"); return 0
+        if args.command == "start":
+            return start(cfg)
+        if args.command == "save":
+            return save(cfg, args.seconds)
+        if args.command == "doctor":
+            return doctor(cfg)
+        if args.command == "bind-temporary":
+            return temporary_bind()
+        if args.command == "config":
+            print(json.dumps(cfg, indent=2, ensure_ascii=False))
+            return 0
+        if args.command == "duration":
+            cfg["save_seconds"] = validate_duration(cfg, args.seconds)
+            config_save(cfg)
+            print(f"✅ F8 guardará los últimos {args.seconds} segundos (sin reiniciar)")
+            return 0
+        if args.command == "mic":
+            desired = args.state == "on"
+            cfg["microphone"] = desired
+            config_save(cfg)
+            print("🎙️ Micrófono:", "ON" if desired else "OFF")
+            if is_running():
+                print("⚠️ Para aplicar: crimson-clips stop; crimson-clips start")
+            return 0
+        if args.command == "mic-source":
+            cfg["microphone_source"] = args.device
+            # Validar antes de cambiar la configuración guardada.
+            if args.device != "auto":
+                resolve_microphone(cfg)
+            config_save(cfg)
+            print("🎙️ Nuevo micrófono:", args.device)
+            if is_running():
+                print("⚠️ Para aplicar: crimson-clips stop; crimson-clips start")
+            return 0
+        if args.command == "audio-output":
+            audio.output_device(args.device)
+            cfg["audio_output"] = args.device
+            config_save(cfg)
+            print("Capture output:", args.device)
+            return 0
+        if args.command == "directory":
+            newpath = Path(os.path.expanduser(args.path)).resolve(strict=True)
+            if not newpath.is_dir() or not os.access(newpath, os.W_OK | os.X_OK):
+                raise RuntimeError("El destino debe ser una carpeta existente con permiso de escritura")
+            cfg["library_id"] = storage.register(newpath)
+            cfg["output_dir"] = str(newpath)
+            config_save(cfg)
+            print("📁 Nuevo destino:", newpath)
+            if is_running():
+                print("⚠️ Para aplicar: crimson-clips stop; crimson-clips start")
+            return 0
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
+        print('❌', exc, file=sys.stderr)
+        if args.command=='save': alert('lolreplay: save failed',str(exc))
+        return 2 if args.command=='status' else 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Public command for the GUI and existing recorder."""
+import os
+import sys
+from pathlib import Path
+bin_dir = Path(__file__).absolute().parent
+args = sys.argv[1:]
+if not args or args == ['ui']:
+    target = bin_dir / 'lolreplay-ui'
+    args = []
+elif args == ['--version']:
+    print('lolreplay 1.0.0')
+    sys.exit(0)
+else:
+    target = bin_dir / 'crimson-clips'
+try:
+    os.execv(str(target), [str(target), *args])
+except OSError as exc:
+    sys.exit(f'lolreplay: {exc}')
