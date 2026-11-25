@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Crimson Clips 0.9 - a small, local replay controller for GPU Screen Recorder.
+"""lolreplay 1.0.1 - a small, local replay controller for GPU Screen Recorder.
 
 Not affiliated with Medal.tv or GPU Screen Recorder.
 """
@@ -35,6 +35,7 @@ DEFAULT = {
     "audio_output": "auto",
     "output_dir": str(Path.home() / "Videos" / "CrimsonClips"),
     "capture": "screen",
+    "rate_control": "auto",
     "niri_capture": "portal",
 }
 def validate_duration(cfg, seconds):
@@ -132,7 +133,7 @@ def start(cfg):
         print("✅ El replay ya está funcionando")
         return 0
     if not shutil.which("gpu-screen-recorder"):
-        raise RuntimeError("Falta gpu-screen-recorder. Ejecuta: sudo pacman -S --needed gpu-screen-recorder")
+        raise RuntimeError("Falta gpu-screen-recorder. Instálalo según tu distribución.")
     if not shutil.which("gsr-cli"):
         raise RuntimeError("Tu versión no incluye gsr-cli; actualiza gpu-screen-recorder")
     out = output_check(cfg, create_default=True)
@@ -152,34 +153,47 @@ def start(cfg):
     mic_device = audio.bridge(resolve_microphone(cfg)) if cfg["microphone"] else None
     # Mix system audio with the isolated microphone monitor for ordinary playback.
     audio_args = ["-a", output_device + ("|"+mic_device if mic_device else "")]
-    args = [
-        "gpu-screen-recorder", "-w", target, "-f", str(cfg["fps"]),
-        "-c", "mp4", "-k", "h264", "-r", str(cfg["buffer_seconds"]),
-        "-replay-storage", "ram", "-bm", "cbr", "-q", str(cfg["bitrate_kbps"]),
-        *audio_args,
-        "-ipc", str(SOCKET), "-o", str(capture_dir),
-    ]
     p = None
     try:
-        with LOG.open("a", encoding="utf-8") as log:
-            log.write(f"\n\n[{datetime.datetime.now().isoformat(timespec='seconds')}] START: {args!r}\n")
-            log.flush()
-            p = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-                                 start_new_session=True, close_fds=True)
-        if target == "portal":
-            print("Select your monitor in the screen sharing dialog (up to 90 seconds).", flush=True)
-        deadline=time.monotonic()+(90 if target=='portal' else 8)
-        while time.monotonic()<deadline:
-            time.sleep(.4)
-            if p.poll() is not None:
-                raise RuntimeError(f"El grabador terminó (código {p.returncode}). Lee: {LOG}")
-            if is_running():
-                if mic_device: audio.watch(p.pid)
-                print(f"✅ Replay activo · {cfg['buffer_seconds']} s de búfer · {cfg['fps']} FPS")
-                print(f"📁 Clips en: {out}")
-                print(f"🎙️ Micro: {mic_device if mic_device else 'desactivado'}")
-                print("ℹ️ Deja pasar unos segundos antes de guardar el primer clip.")
-                return 0
+        mode = cfg.get("rate_control", "auto")
+        for rate in perf.rate_attempts(mode):
+            args = [
+                "gpu-screen-recorder", "-w", target, "-f", str(cfg["fps"]),
+                "-c", "mp4", "-k", "h264", "-r", str(cfg["buffer_seconds"]),
+                "-replay-storage", "ram", *perf.rate_args(cfg, rate),
+                *audio_args, "-ipc", str(SOCKET), "-o", str(capture_dir),
+            ]
+            with LOG.open("a", encoding="utf-8") as log:
+                log.write(f"\n\n[{datetime.datetime.now().isoformat(timespec='seconds')}] START: {args!r}\n")
+                log.flush()
+                offset = os.fstat(log.fileno()).st_size
+                p = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                                     start_new_session=True, close_fds=True)
+            if target == "portal":
+                print("Select your monitor in the screen sharing dialog (up to 90 seconds).", flush=True)
+            deadline=time.monotonic()+(90 if target=='portal' else 8)
+            while time.monotonic()<deadline:
+                time.sleep(.4)
+                if p.poll() is not None:
+                    with LOG.open("rb") as log:
+                        log.seek(offset)
+                        failure = log.read().decode(errors="replace")
+                    if mode == "auto" and rate == "cbr" and perf.cbr_rejected(failure):
+                        if is_running():
+                            raise RuntimeError("Recorder status unexpectedly active; no retry attempted")
+                        if SOCKET.exists(): SOCKET.unlink()
+                        print("CBR unsupported by driver; retrying with CQP.", flush=True)
+                        break
+                    raise RuntimeError(f"El grabador terminó (código {p.returncode}). Lee: {LOG}")
+                if is_running():
+                    if mic_device: audio.watch(p.pid)
+                    print(f"✅ Replay activo · {cfg['buffer_seconds']} s de búfer · {cfg['fps']} FPS · {rate.upper() if rate == 'cbr' else 'CQP'}")
+                    print(f"📁 Clips en: {out}")
+                    print(f"🎙️ Micro: {mic_device if mic_device else 'desactivado'}")
+                    print("ℹ️ Deja pasar unos segundos antes de guardar el primer clip.")
+                    return 0
+            else:
+                raise RuntimeError(f"El grabador no confirmó el arranque. Revisa el log: {LOG}")
         raise RuntimeError(f"El grabador no confirmó el arranque. Revisa el log: {LOG}")
     except (Exception, KeyboardInterrupt):
         if p is not None and p.poll() is None:
@@ -232,7 +246,7 @@ def stop():
 
 
 def doctor(cfg):
-    print("=== LOLREPLAY 0.9 / DIAGNÓSTICO ===")
+    print("=== LOLREPLAY 1.0.1 / DIAGNÓSTICO ===")
     print("Compositor:", compositor.detect())
     print("Capture:", compositor.capture(cfg))
     print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
@@ -246,6 +260,7 @@ def doctor(cfg):
     except Exception as exc:
         print("Destino:", exc)
     print("Replay:", "ACTIVO" if is_running() else "DETENIDO")
+    print("Rate control:", cfg.get("rate_control", "auto"))
     print("Duración F8:", cfg["save_seconds"], "s")
     print("Micrófono:", "ON" if cfg["microphone"] else "OFF")
     print("Micro configurado:", cfg.get("microphone_source", "auto"))
@@ -286,7 +301,7 @@ def temporary_bind():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Crimson Clips 0.9 - Replay local para Hyprland y Niri")
+    parser = argparse.ArgumentParser(description="lolreplay 1.0.1 - Replay local para Hyprland y Niri")
     sub = parser.add_subparsers(dest="command", required=True)
     for cmd in ("start", "stop", "status", "doctor", "bind-temporary", "config"):
         sub.add_parser(cmd)
@@ -297,6 +312,8 @@ def main():
     nc.add_argument("mode", choices=("portal", "screen"))
     profile = sub.add_parser("profile", help="Set capture quality while replay is stopped")
     profile.add_argument("name", choices=tuple(perf.PROFILES))
+    rate = sub.add_parser("rate-control", help="Set encoder rate control while stopped")
+    rate.add_argument("mode", choices=("auto", "cbr", "cqp"))
     buffer = sub.add_parser("buffer", help="Set RAM replay window in seconds (30–1200)")
     buffer.add_argument("seconds", type=int)
     saving = sub.add_parser("save", help="Guardar replay (por defecto, el de config)")
@@ -324,7 +341,7 @@ def main():
                 except BlockingIOError:
                     if time.monotonic()>=deadline: raise RuntimeError('Otra operación de lolreplay sigue en curso. Reintenta en unos segundos.')
                     time.sleep(.1)
-        if args.command in ("mic","mic-source","audio-output","directory","niri-capture","profile","buffer") and is_running():
+        if args.command in ("mic","mic-source","audio-output","directory","niri-capture","profile","buffer","rate-control") and is_running():
             raise RuntimeError("Stop replay before changing capture, audio or storage (buffer will reset).")
         # Status and stop must work even if the settings file is damaged.
         if args.command == 'status':
@@ -342,6 +359,8 @@ def main():
         if args.command == "profile":
             cfg=perf.set_profile(cfg,args.name); config_save(cfg)
             print(f"Capture: {cfg['fps']} FPS · {cfg['bitrate_kbps']} kbps"); return 0
+        if args.command == "rate-control":
+            cfg["rate_control"] = args.mode; config_save(cfg); print("Rate control:", args.mode); return 0
         if args.command == "buffer":
             cfg=perf.set_buffer(cfg,args.seconds); config_save(cfg)
             print(f"Buffer: {cfg['buffer_seconds']} s · F8: {cfg['save_seconds']} s"); return 0

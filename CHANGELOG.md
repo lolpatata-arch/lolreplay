@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 — Encoder compatibility
+
+- Retry in CQP when the current recorder explicitly rejects CBR; retain CBR on compatible hardware.
+- Select automatic, CBR or CQP rate control from settings or CLI.
+- Create the default local library on install without recreating missing external libraries.
+- Correct the diagnostic version and document the tested Debian setup.
+- Debian capture was confirmed with the manual 1.0.0 workaround; the new automatic retry needs live testing.
+
 ## 1.0.0 — First public release
 
 - First public release of the user-tested 0.9.9.1 feature set.

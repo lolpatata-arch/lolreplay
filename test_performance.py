@@ -24,6 +24,16 @@ class PerformanceTests(unittest.TestCase):
         for n in (0,29,1201):
             with self.assertRaises(ValueError): perf.set_buffer(cfg,n)
         self.assertEqual(perf.video_payload_mb(12000,1200),1800)
+    def test_rate_control(self):
+        cfg={'bitrate_kbps':12000}
+        self.assertEqual(perf.rate_attempts('auto'),('cbr','cqp'))
+        self.assertEqual(perf.rate_attempts('cbr'),('cbr',))
+        self.assertEqual(perf.rate_attempts('cqp'),('cqp',))
+        self.assertEqual(perf.rate_args(cfg,'cbr'),['-bm','cbr','-q','12000'])
+        self.assertEqual(perf.rate_args(cfg,'cqp'),['-bm','qp','-q','high'])
+        self.assertTrue(perf.cbr_rejected('Driver does not support CBR RC mode (supported modes: CQP).'))
+        self.assertFalse(perf.cbr_rejected('Permission denied'))
+        self.assertFalse(perf.cbr_rejected('Driver does not support CBR RC mode (supported modes: VBR).'))
     def test_thumbnail(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'test clip.mp4'
@@ -53,6 +63,7 @@ class PerformanceTests(unittest.TestCase):
                 p=subprocess.run([sys.executable,str(root/'install.py')],env=env,capture_output=True,text=True)
                 self.assertEqual(p.returncode,0,p.stderr)
             self.assertEqual(cfg.read_bytes(),before)
+            self.assertTrue((home/'Videos/CrimsonClips').is_dir())
             self.assertTrue((home/'.local/bin/lolreplay_performance.py').is_file())
             self.assertTrue((home/'.local/bin/lolreplay_icons.py').is_file())
             icon_path=home/'.local/share/icons/hicolor/512x512/apps/lolreplay.png'
@@ -65,6 +76,6 @@ class PerformanceTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertEqual(len(list(legacy.parent.glob('lolreplay.svg.bak-*'))),1)
             p=subprocess.run([sys.executable,str(home/'.local/bin/lolreplay'),'--version'],env=env,capture_output=True,text=True)
-            self.assertEqual(p.stdout.strip(),'lolreplay 1.0.0')
+            self.assertEqual(p.stdout.strip(),'lolreplay 1.0.1')
 
 if __name__=='__main__': unittest.main()

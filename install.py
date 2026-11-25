@@ -45,6 +45,13 @@ def install_locked():
     if old.is_file():
         status=subprocess.run([str(old),'status'],capture_output=True,timeout=10)
         if status.returncode!=1: raise ValueError('Stop replay first; cannot confirm recorder is stopped.')
+    # Create only the default local directory; never recreate an absent custom drive.
+    from lolreplay_storage import read_config
+    try: cfg=read_config()
+    except OSError: cfg=None  # Preserve damaged settings; diagnostics can report them.
+    default=HOME/'Videos/CrimsonClips'
+    if cfg is not None and not cfg.get('library_id') and Path(cfg.get('output_dir',str(default))).expanduser()==default:
+        default.mkdir(parents=True,exist_ok=True)
     # Preserve original executable and config; install the updated compatible engine.
     for name in ('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips'):
         write(BIN/name,(HERE/name).read_text(),0o755)
@@ -72,7 +79,7 @@ def install_locked():
         if shutil.which(executable):
             try: subprocess.run([executable,*args],capture_output=True,timeout=5,check=False)
             except (OSError,subprocess.SubprocessError): pass
-    print('lolreplay 1.0.0 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
+    print('lolreplay 1.0.1 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
 
 def check():
     import lolreplay_compositor as compositor

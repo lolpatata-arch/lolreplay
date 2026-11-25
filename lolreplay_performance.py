@@ -24,3 +24,19 @@ def thumbnail_command(path):
     if shutil.which('nice'):
         return ['nice', '-n', '10', *args]
     return args
+
+
+def rate_attempts(mode):
+    return {'auto': ('cbr', 'cqp'), 'cbr': ('cbr',), 'cqp': ('cqp',)}[mode]
+
+
+def rate_args(cfg, rate):
+    if rate == 'cbr': return ['-bm', 'cbr', '-q', str(cfg['bitrate_kbps'])]
+    if rate == 'cqp':
+        quality = 'medium' if cfg['bitrate_kbps'] <= 6000 else 'high' if cfg['bitrate_kbps'] <= 12000 else 'very_high'
+        return ['-bm', 'qp', '-q', quality]
+    raise ValueError('Unknown rate control')
+
+
+def cbr_rejected(log):
+    return any('driver does not support cbr rc mode' in line.lower() and 'cqp' in line.lower() for line in log.splitlines())

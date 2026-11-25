@@ -2862,3 +2862,9 @@ _shortcut_rows = [
 ('Have you replaced or removed the old binding and tested the new configuration?','¿Has sustituido o eliminado el atajo anterior y probado la nueva configuración?','Avez-vous remplacé ou supprimé l’ancien raccourci et testé la configuration ?','Hast du die alte Bindung ersetzt oder entfernt und die neue Konfiguration getestet?','Вы заменили или удалили старую привязку и проверили новую конфигурацию?','Czy zastąpiono lub usunięto stare powiązanie i sprawdzono nową konfigurację?','古い設定を置き換えるか削除し、新しい設定をテストしましたか？','是否已替换或删除旧绑定并测试新配置？','Hai sostituito o rimosso la vecchia associazione e provato la nuova configurazione?'),
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _shortcut_rows})
+
+CATALOG.update({
+ 'Rate control': dict(zip(('es_ES','fr_FR','de_DE','ru_RU','pl_PL','ja_JP','zh_CN','it_IT'),('Control de tasa','Contrôle du débit','Ratensteuerung','Управление битрейтом','Kontrola przepływności','レート制御','码率控制','Controllo del bitrate'))),
+ 'Automatic (CBR then CQP)': dict(zip(('es_ES','fr_FR','de_DE','ru_RU','pl_PL','ja_JP','zh_CN','it_IT'),('Automático (CBR y después CQP)','Automatique (CBR puis CQP)','Automatisch (CBR, dann CQP)','Авто (CBR, затем CQP)','Automatycznie (CBR, potem CQP)','自動（CBR、次にCQP）','自动（先 CBR 后 CQP）','Automatico (CBR poi CQP)'))),
+ 'History: {0} · CQP size varies with content': dict(zip(('es_ES','fr_FR','de_DE','ru_RU','pl_PL','ja_JP','zh_CN','it_IT'),('Historial: {0} · El tamaño CQP depende del contenido','Historique : {0} · La taille CQP dépend du contenu','Verlauf: {0} · CQP-Größe hängt vom Inhalt ab','История: {0} · Размер CQP зависит от содержимого','Historia: {0} · Rozmiar CQP zależy od treści','履歴: {0} · CQPのサイズは内容によって変動','历史：{0} · CQP 大小随内容变化','Cronologia: {0} · La dimensione CQP dipende dal contenuto'))),
+})

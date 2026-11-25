@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 import lolreplay_audio as audio
 import lolreplay_storage as storage
 
@@ -19,12 +19,38 @@ engine=importlib.util.module_from_spec(spec); loader.exec_module(engine)
 
 class StabilityTests(unittest.TestCase):
     def test_bad_config(self):
-        for bad in ([],{'fps':None},{'bitrate_kbps':'abc'},{'microphone':'yes'},{'buffer_seconds':30,'save_seconds':60},{'library_id':[]},{'niri_capture':'bad'}):
+        for bad in ([],{'fps':None},{'bitrate_kbps':'abc'},{'microphone':'yes'},{'buffer_seconds':30,'save_seconds':60},{'library_id':[]},{'niri_capture':'bad'},{'rate_control':'bad'}):
             with self.subTest(bad=bad), self.assertRaises(ValueError): storage.validate_config(bad)
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'config.json'; p.write_text('{broken')
             with patch.object(storage,'CONFIG',p),self.assertRaises(OSError): storage.read_config()
             self.assertEqual(p.read_text(),'{broken')
+    def test_encoder_retry(self):
+        error='Driver does not support CBR RC mode (supported modes: CQP).'
+        for mode, log_error, expected, succeeds in (
+            ('auto', error, ['cbr','qp'], True),
+            ('auto', 'Permission denied', ['cbr'], False),
+            ('cbr', error, ['cbr'], False),
+            ('cqp', '', ['qp'], True),
+            ('auto', '', ['cbr'], True),
+        ):
+            with self.subTest(mode=mode,log_error=log_error), tempfile.TemporaryDirectory() as d:
+                base=Path(d); log=base/'recorder.log'; log.write_text(error+'\n')
+                calls=[]
+                def launch(args,**kw):
+                    rate=args[args.index('-bm')+1]; calls.append(rate)
+                    failure=log_error if rate=='cbr' else ''
+                    if failure: kw['stdout'].write(failure+'\n'); kw['stdout'].flush()
+                    process=Mock(); process.poll.return_value=1 if failure else None; process.returncode=1 if failure else None
+                    return process
+                # Initial status is stopped; failed attempts stay stopped; successful attempt confirms active.
+                def running(): return bool(calls and (calls[-1]=='qp' or not log_error))
+                cfg={**engine.DEFAULT,'rate_control':mode}
+                with patch.object(engine,'LOG',log),patch.object(engine,'SOCKET',base/'socket'),patch.object(engine,'is_running',side_effect=running),patch.object(engine,'output_check',return_value=base),patch.object(engine.shutil,'which',return_value='/fake'),patch.object(engine.compositor,'capture',return_value='screen'),patch.object(engine.audio,'cleanup'),patch.object(engine.audio,'output_device',return_value='default_output'),patch.object(engine.subprocess,'Popen',side_effect=launch),patch.object(engine.time,'sleep'):
+                    if succeeds: self.assertEqual(engine.start(cfg),0)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError,'grabador terminó'): engine.start(cfg)
+                self.assertEqual(calls,expected)
     def test_ipc_unknown(self):
         with patch.object(engine.shutil,'which',return_value='/bin/gsr-cli'),patch.object(engine.subprocess,'run',side_effect=subprocess.TimeoutExpired('gsr-cli',4)):
             with self.assertRaisesRegex(RuntimeError,'timeout'): engine.is_running()

@@ -23,6 +23,7 @@ def validate_config(cfg):
         if key in cfg and (not isinstance(cfg[key],str) or not cfg[key].strip() or '\x00' in cfg[key]): raise ValueError('Invalid configuration: '+key)
     if 'microphone' in cfg and type(cfg['microphone']) is not bool: raise ValueError('Invalid microphone setting')
     if cfg.get('niri_capture','portal') not in ('portal','screen'): raise ValueError('Invalid Niri capture mode')
+    if cfg.get('rate_control','auto') not in ('auto','cbr','cqp'): raise ValueError('Invalid rate control')
     token=cfg.get('library_id')
     if token is not None and (not isinstance(token,str) or len(token)!=32 or any(c not in '0123456789abcdef' for c in token)): raise ValueError('Invalid library ID; repair the configuration before use')
     return cfg
