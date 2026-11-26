@@ -16,6 +16,7 @@ from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
 from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo
 import lolreplay_storage as storage
 import lolreplay_library as library
+import lolreplay_games as games
 import sqlite3
 import lolreplay_audio as audio
 import lolreplay_drives as drives
@@ -191,7 +192,7 @@ class Window(QMainWindow):
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
         if self.library_sort not in ('newest','oldest','largest','name'): self.library_sort='newest'
-        self.library_db=library.Library(library.default_path()); self.clip_metadata={}; self.library_keys={}; self.durations={}; self.probe_queue=[]; self.probe_current=None; self.probe_failed=set()
+        self.library_db=library.Library(library.default_path()); self.metadata_stamp=None; self.clip_metadata={}; self.library_keys={}; self.durations={}; self.probe_queue=[]; self.probe_current=None; self.probe_failed=set()
         self.update_custom_palette()
         if not isinstance(self.theme,str) or self.theme not in THEMES: self.theme='Crimson Red'
         self.action=QProcess(self); self.action.finished.connect(self.action_done); self.action.errorOccurred.connect(self.action_error)
@@ -262,7 +263,7 @@ class Window(QMainWindow):
         self.replay_window=ReplayWindow(self); c.addWidget(self.replay_window)
         self.window_caption=label('','muted'); self.window_caption.setWordWrap(True); c.addWidget(self.window_caption); self.window_hint=label('','muted'); c.addWidget(self.window_hint)
         save_row=QHBoxLayout(); self.save_btn=decorate(button(t('Save clip'),lambda:self.run('save'),'primary'),'save','#ffffff'); self.save_btn.setToolTip(self.hotkey_text('Save the selected replay duration (F8)')); save_row.addWidget(self.save_btn,1); self.save_key=label(self.global_key or '—','key'); save_row.addWidget(self.save_key); c.addLayout(save_row)
-        c.addWidget(self.rule()); c.addWidget(label(t('Capture'),'section')); self.capture_specs=label('H.264  ·  60 FPS  ·  GPU','muted'); c.addWidget(self.capture_specs); self.capture_audio=label(t('System audio'),'muted'); c.addWidget(self.capture_audio)
+        c.addWidget(self.rule()); c.addWidget(label(t('Capture'),'section')); self.capture_specs=label('H.264  ·  60 FPS  ·  GPU','muted'); c.addWidget(self.capture_specs); self.capture_audio=label(t('System audio'),'muted'); c.addWidget(self.capture_audio); self.game_status=label('','muted'); self.game_status.setWordWrap(True); c.addWidget(self.game_status)
         c.addStretch(); c.addWidget(label(t('STORAGE'),'eyebrow')); self.disk=label(t('Storage —'),'stat'); c.addWidget(self.disk); self.storage_bar=QProgressBar(); self.storage_bar.setRange(0,1000); self.storage_bar.setTextVisible(False); self.storage_bar.setFixedHeight(5); c.addWidget(self.storage_bar)
         c.addWidget(button(t('Open clips folder'),self.open_folder,'quiet')); workspace.addWidget(rail); v.addLayout(workspace,1)
 
@@ -1191,6 +1192,7 @@ class Window(QMainWindow):
         for (secs,_),b in zip(DURATIONS,self.duration_buttons): b.setEnabled(idle and secs<=self.buffer_seconds)
         for b in (self.folder_btn,self.drive_btn,self.mic_btn,self.source_btn,self.output_btn,self.routing_btn,self.profile_btn,self.buffer_btn,self.rate_btn): b.setEnabled(idle and self.active is False and not self.editor.busy())
         if hasattr(self,"niri_mode_btn"): self.niri_mode_btn.setEnabled(idle and self.active is False)
+        game=games.recent_game(4) if self.active else ''; self.game_status.setText(t('Detected game: {0}',game) if game else t('Game not detected')); self.game_status.setVisible(self.active is True)
         self.sync_duration_ui()
 
     def choose_duration(self,seconds):
@@ -1271,11 +1273,18 @@ class Window(QMainWindow):
             files.sort(key=lambda x:x[1],reverse=True)
         except OSError: files=[]
         self.clip_count.setText(clip_count(len(files))); self.empty.setVisible(not files); self.recent_empty.setVisible(len(files)<2); self.recent.setVisible(len(files)>1); self.collection_title.setText(t('Your first clip is saved') if files else t('Your collection starts here')); self.collection_hint.setText(t('More saves will appear here.') if files else t('Saved clips appear automatically.')); total=sum(f[2] for f in files); self.collection_summary.setText(clip_count(len(files))+'  ·  '+(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')+'  ·  '+t('Local library')); self.collection_detail.setText(t('Click a thumbnail to watch it.') if files else t('The latest capture will appear here.'))
-        if files==self.snapshot and not force: return
+        try: db_stamp=self.library_db.path.stat().st_mtime_ns
+        except OSError: db_stamp=None
+        if files==self.snapshot and not force:
+            if db_stamp==self.metadata_stamp: return
+            try: current=self.library_db.load()
+            except (OSError,sqlite3.Error): return
+            self.metadata_stamp=db_stamp
+            if current==self.clip_metadata: return
         selected=self.list.currentItem(); selected=selected.data(Qt.ItemDataRole.UserRole) if selected else None
         self.library_keys={key[0]:key for key in files}
         try:
-            self.clip_metadata=self.library_db.load(); self.durations=self.library_db.load_durations()
+            self.clip_metadata=self.library_db.load(); self.durations=self.library_db.load_durations(); self.metadata_stamp=db_stamp
         except (OSError,sqlite3.Error) as exc: self.message.setText(t('Library metadata unavailable')+': '+str(exc))
         self.probe_failed.intersection_update(files); self.probe_queue=[key for key in files if key[2]>0 and key not in self.durations and key not in self.probe_failed and key!=self.probe_current]
         self.refresh_game_filter()

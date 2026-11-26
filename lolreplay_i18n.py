@@ -3504,3 +3504,5 @@ _game16_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _game16_rows})
+
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Detected game: {0}","Juego detectado: {0}","Jeu détecté : {0}","Erkanntes Spiel: {0}","Обнаруженная игра: {0}","Wykryta gra: {0}","検出したゲーム：{0}","检测到游戏：{0}","Gioco rilevato: {0}"]]})
