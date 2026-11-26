@@ -1,0 +1,25 @@
+pkgbase = lolreplay
+	pkgdesc = Local GPU-assisted instant replay and clip editor for Linux Wayland
+	pkgver = 1.7.0
+	pkgrel = 1
+	url = https://github.com/lolpatata-arch/lolreplay
+	arch = x86_64
+	license = MIT
+	makedepends = git
+	depends = python
+	depends = pyside6
+	depends = qt6-multimedia-ffmpeg
+	depends = ffmpeg
+	depends = gpu-screen-recorder
+	depends = libpulse
+	depends = pipewire-pulse
+	optdepends = hyprland: supported Wayland compositor
+	optdepends = niri: experimental Wayland compositor support
+	optdepends = xdg-desktop-portal: portal capture
+	optdepends = libnotify: desktop notifications
+	optdepends = udisks2: external drive management
+	optdepends = qt6-translations: translated Qt dialogs
+	source = lolreplay::git+https://github.com/lolpatata-arch/lolreplay.git#commit=8a1627e0831bbf52c1aaef9e8cdd562b0ada86f4
+	sha256sums = SKIP
+
+pkgname = lolreplay

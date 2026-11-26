@@ -1,0 +1,97 @@
+# Maintainer: lolpatata-arch (contact via upstream GitHub)
+pkgname=lolreplay
+pkgver=1.7.0
+pkgrel=1
+pkgdesc='Local GPU-assisted instant replay and clip editor for Linux Wayland'
+arch=('x86_64')
+url='https://github.com/lolpatata-arch/lolreplay'
+license=('MIT')
+depends=('python' 'pyside6' 'qt6-multimedia-ffmpeg' 'ffmpeg' 'gpu-screen-recorder' 'libpulse' 'pipewire-pulse')
+makedepends=('git')
+optdepends=('hyprland: supported Wayland compositor'
+            'niri: experimental Wayland compositor support'
+            'xdg-desktop-portal: portal capture'
+            'libnotify: desktop notifications'
+            'udisks2: external drive management'
+            'qt6-translations: translated Qt dialogs')
+_commit=8a1627e0831bbf52c1aaef9e8cdd562b0ada86f4
+source=("lolreplay::git+https://github.com/lolpatata-arch/lolreplay.git#commit=$_commit")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$srcdir/lolreplay"
+  # The exact upstream commit is pinned; these adaptations are package-only.
+  python - <<'PY'
+from pathlib import Path
+
+def replace(path, old, new):
+    p = Path(path)
+    data = p.read_text()
+    if data.count(old) != 1:
+        raise RuntimeError(f"Unexpected upstream content: {path}")
+    p.write_text(data.replace(old, new, 1))
+
+replace("lolreplay", "bin_dir = Path(__file__).absolute().parent",
+        "bin_dir = Path(__file__).resolve().parent")
+replace("lolreplay-ui", "CLI = HOME / '.local/bin/crimson-clips'",
+        "CLI = Path(__file__).resolve().with_name('crimson-clips')")
+replace("lolreplay", """    target = bin_dir / 'lolreplay_updater.py'
+    args = args[1:]
+    os.execv(sys.executable, [sys.executable, str(target), *args])""",
+        """    sys.exit('Package-managed installation: update using yay -Syu or your AUR helper.')""")
+replace("lolreplay_update_ui.py",
+        "        info=QLabel(t('Updates are manual. Nothing is downloaded or installed without your approval.')); info.setWordWrap(True); layout.addWidget(info)",
+        """        info=QLabel(t('Updates are managed by your package manager.')); info.setWordWrap(True); layout.addWidget(info)
+        layout.addWidget(QLabel('yay -Syu'))
+        return""")
+replace("crimson-clips", 'description="lolreplay 1.2.0 - Replay local para Hyprland y Niri"',
+        'description="lolreplay 1.7.0 - Replay local para Hyprland y Niri"')
+p = Path("lolreplay_i18n.py")
+with p.open("a") as f:
+    f.write("\nCATALOG.update({'Updates are managed by your package manager.': dict(zip(list(LANGUAGES)[1:], ['Las actualizaciones las gestiona tu gestor de paquetes.', 'Les mises à jour sont gérées par votre gestionnaire de paquets.', 'Updates werden von der Paketverwaltung verwaltet.', 'Обновления управляются менеджером пакетов.', 'Aktualizacje są zarządzane przez menedżera pakietów.', '更新はパッケージマネージャーで管理されます。', '更新由软件包管理器管理。', 'Gli aggiornamenti sono gestiti dal gestore dei pacchetti.']))})\n")
+PY
+}
+
+check() {
+  cd "$srcdir/lolreplay"
+  python - <<'PY'
+from pathlib import Path
+from PySide6 import QtCore, QtWidgets, QtNetwork, QtMultimedia, QtMultimediaWidgets
+for path in [Path('lolreplay'), Path('lolreplay-ui'), Path('crimson-clips'), *Path('.').glob('lolreplay_*.py')]:
+    compile(path.read_text(), str(path), 'exec')
+PY
+  # Test the public version and package-managed updater guard without capture.
+  python lolreplay --version | grep -Fx "lolreplay $pkgver"
+  local output
+  if output=$(python lolreplay update 2>&1); then
+    echo 'Package updater guard did not stop the standalone updater' >&2
+    return 1
+  fi
+  grep -Fq 'Package-managed installation' <<< "$output"
+}
+
+package() {
+  cd "$srcdir/lolreplay"
+  local lib="$pkgdir/usr/lib/lolreplay"
+  install -dm755 "$lib" "$pkgdir/usr/bin"
+  install -m755 lolreplay lolreplay-ui crimson-clips "$lib/"
+  install -m644 lolreplay_*.py lolreplay.png "$lib/"
+  ln -s ../lib/lolreplay/lolreplay "$pkgdir/usr/bin/lolreplay"
+  install -Dm644 lolreplay.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/lolreplay.png"
+  install -Dm644 lolreplay.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/crimson-clips.png"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/lolreplay/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/lolreplay/README.md"
+  install -Dm644 CHANGELOG.md "$pkgdir/usr/share/doc/lolreplay/CHANGELOG.md"
+  install -dm755 "$pkgdir/usr/share/applications"
+  cat > "$pkgdir/usr/share/applications/crimson-clips.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=lolreplay
+Comment=Local instant replay and clip editor
+Exec=/usr/bin/lolreplay
+Icon=lolreplay
+Terminal=false
+Categories=AudioVideo;Video;
+StartupNotify=true
+DESKTOP
+}
