@@ -103,7 +103,7 @@ class Timeline(QWidget):
         self.zoom=max(1,zoom); self.offset=max(0.,min(self.total-self.span(),position)); self.update()
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); width=max(1,self.width()-24)
-        strip=QRectF(12,23,width,48); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(QRectF(3,3,max(1,self.width()-6),98),9,9); p.setBrush(self.palette().base().color()); p.drawRoundedRect(strip,6,6)
+        strip=QRectF(12,23,width,48); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(QRectF(3,3,max(1,self.width()-6),98),9,9); p.setPen(QPen(self.palette().highlight().color(),1)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawLine(12,6,max(12,self.width()-12),6); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().base().color()); p.drawRoundedRect(strip,6,6)
         a,b=self.to_x(self.start),self.to_x(self.end)
         if self.total:
             accent=self.palette().highlight().color() if not hasattr(self,'accent') else QColor(self.accent)
@@ -154,8 +154,8 @@ class Editor(QWidget):
         self.strip_proc=QProcess(self); self.strip_proc.finished.connect(self.strip_done); self.strip_proc.errorOccurred.connect(self.strip_error); self.strip_watch=QTimer(self); self.strip_watch.setSingleShot(True); self.strip_watch.timeout.connect(self.strip_proc.kill); self.strip_pending=None; self.strip_current=None
         main=QVBoxLayout(self); main.setContentsMargins(0,0,0,0); main.setSpacing(12)
         top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=fit_combo(QComboBox()); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
-        self.title=lab(t('No clip selected'),'muted'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
-        area=QSplitter(Qt.Orientation.Horizontal); self.area=area; area.setChildrenCollapsible(False); left=QFrame(); left.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); left.setMinimumSize(120,150); left.setObjectName('feature'); self.left_pane=left; l=QVBoxLayout(left); self.left_layout=l; l.setContentsMargins(0,0,0,0); l.setSpacing(9)
+        self.title=lab(t('No clip selected'),'editorTitle'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
+        area=QSplitter(Qt.Orientation.Horizontal); self.area=area; area.setChildrenCollapsible(False); left=QFrame(); left.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); left.setMinimumSize(120,150); left.setObjectName('editorStage'); self.left_pane=left; l=QVBoxLayout(left); self.left_layout=l; l.setContentsMargins(4,4,4,4); l.setSpacing(9)
         if MEDIA:
             self.video=ClickVideoWidget(); self.video.clicked.connect(lambda:self.play_selection() if self.window.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(72); self.video.setStyleSheet('background:#050505'); l.addWidget(self.video,3)
             self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(.45); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); self.player.positionChanged.connect(self.position); self.player.playbackStateChanged.connect(self.play_state); self.player.errorOccurred.connect(lambda e,m:self.note.setText(t('Preview: ')+m))

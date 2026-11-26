@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0 — Overdrive (development)
+
+- Remove the permanent sidebar. Center a floating bottom dock with four pages, active-page accent and compact icon-only navigation.
+- Persistent command hub exposes actual recorder state, duration, start/stop and save on every page; uses existing recorder guards and shortcuts.
+- Recompose Replay with a cinematic hero next to capture controls, telemetry across the workspace and a full-width gallery. Add a static theme-aware diagonal artwork treatment and larger clip thumbnails with play affordance.
+- Refine editor stage, settings navigation, global typography and surfaces. Keep previous themes and wallpapers, no background animation timers, no new dependencies.
+- Fixed dashboard composition; movable widgets and community layout presets are not implemented. Automated and real desktop verification pending.
+
 ## 1.9.0 — Bento Dashboard
 
 - Rebuild Replay as a fixed editorial grid: cinematic artwork and capture session on top, full-width control console and recent gallery below.

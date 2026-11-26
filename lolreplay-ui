@@ -1129,7 +1129,7 @@ class Window(QMainWindow):
         self.top_layout.setContentsMargins(6,3,6,3) if hub_compact else self.top_layout.setContentsMargins(14,7,14,7)
         self.top_layout.setSpacing(5 if hub_compact else 10)
         self.dock_layout.setContentsMargins(4,3,4,3) if compact else self.dock_layout.setContentsMargins(8,5,8,5)
-        self.dock.setMaximumWidth(300 if icon_nav else 760)
+        self.dock.setMaximumWidth(round((300 if icon_nav else 760)*scale))
         self.body_layout.setContentsMargins(body_pad,0,body_pad,0)
         self.body_layout.setSpacing(4 if compact else min(10,gap))
         self.state.setWordWrap(False)
@@ -1337,6 +1337,7 @@ class Window(QMainWindow):
         QWidget#shellRoot {{background:{ink};}}
         QFrame#commandHub {{background:{hub_surface};border:1px solid {border};border-radius:{shell_radius}px;}}
         QFrame#commandHub QLabel,QFrame#bottomDock QLabel {{background:transparent;}}
+        QFrame#commandHub QLabel#key {{background:{ink};border:1px solid {border};border-radius:6px;}}
         QLabel#brand {{font-size:23px;font-weight:800;color:#f4f4f7;}}
         QLabel#hubMeta {{font-family:monospace;font-size:10px;color:#a6a6b2;}}
         QLabel#pageIndex {{font-family:monospace;font-size:11px;color:{bright};border:1px solid {border};border-radius:5px;padding:5px 7px;}}
@@ -1352,7 +1353,8 @@ class Window(QMainWindow):
         QPushButton#hubSave:hover:!disabled {{background:{QColor(accent).lighter(120).name()};}}
         QFrame#dashboardHero {{background:{ink};border:1px solid {border};}}
         QFrame#dashboardConsole {{background:{hub_surface};border:1px solid {accent};}}
-        QFrame#playerPane,QFrame#rail {{background:{panelbg};border:1px solid {border};border-radius:{shell_radius}px;}}
+        QFrame#playerPane,QFrame#rail,QFrame#editorStage {{background:{panelbg};border:1px solid {border};border-radius:{shell_radius}px;}}
+        QLabel#editorTitle {{font-size:14px;font-weight:600;color:#f4f4f7;}}
         QListWidget#settingsNavigation {{background:{panelbg};border:1px solid {border};padding:7px;}}
         QListWidget#settingsNavigation::item {{padding:9px;border-radius:7px;}}
         QFrame#themeTile {{background:{panelbg};border:1px solid {border};border-radius:9px;}}
@@ -1529,7 +1531,7 @@ class Window(QMainWindow):
         glyph='stop' if self.active is True else 'play'
         if self.hub_toggle.property('lrIcon')!=glyph: decorate(self.hub_toggle,glyph)
         self.hub_toggle.setText('' if self.width()/(self.prefs['text_scale']/100)<920 or self.height()/(self.prefs['text_scale']/100)<530 else action)
-        self.hub_status.setToolTip(self.state.text()); self.state_dot.setToolTip(self.state.text())
+        self.hub_status.setToolTip(self.state.text()); self.state_dot.setToolTip(self.state.text()); self.hub_status.setAccessibleName(self.state.text())
         for (secs,_),b in zip(DURATIONS,self.duration_buttons): b.setEnabled(idle and secs<=self.buffer_seconds)
         for b in (self.folder_btn,self.drive_btn,self.mic_btn,self.source_btn,self.output_btn,self.routing_btn,self.profile_btn,self.buffer_btn,self.rate_btn): b.setEnabled(idle and self.active is False and not self.editor.busy())
         if hasattr(self,"niri_mode_btn"): self.niri_mode_btn.setEnabled(idle and self.active is False)
