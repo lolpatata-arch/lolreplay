@@ -84,7 +84,8 @@ from PySide6.QtWidgets import QApplication, QScrollArea
 from PySide6.QtTest import QTest
 from lolreplay_widgets import SeekSlider
 from lolreplay_i18n import set_language, LANGUAGES
-from lolreplay_preferences import media_stacked
+from lolreplay_preferences import media_stacked, OPTIONS
+from lolreplay_shortcuts import LABELS
 app=QApplication([]); app.setStyle('Fusion')
 s=SeekSlider(); s.setRange(0,120000); s.resize(400,30); s.show(); app.processEvents()
 values=[]; s.seekRequested.connect(values.append)
@@ -102,59 +103,62 @@ def contained(widget, parent):
 sizes=((640,480),(800,600),(960,540),(1024,768),(1280,720),(1366,768),(1440,900),(1920,1080),(2560,1440),(3840,2160),(720,1280),(3440,1440))
 for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
-    assert w.settings_stack.count()==11
-    assert len(w.key_fields)==27 and len(w.pref_controls)==16
-    w.prefs['thumbnails']=False
-    if w.list.count():
-        w.navigate(1); w.list.setCurrentRow(0); app.processEvents()
-        assert w.preview_path and w.player.source().isLocalFile()
-        w.navigate(2); app.processEvents(); assert w.editor.source and w.editor.total>0
-    for scale in (100,110,120):
-        w.prefs['text_scale']=scale; w.prefs['large_targets']=(scale==120); w.apply_preferences(refresh=False)
-        for width,height in sizes:
-            w.resize(width,height); app.processEvents()
-            for index in range(4):
-                w.navigate(index); app.processEvents()
-                assert w.width()<=width+2 and w.height()<=height+2, (locale,scale,width,height,w.size(),index)
-                page=w.stack.currentWidget(); contained(page,w.stack)
-                assert page.width()>0 and page.height()>0
+    try:
+        assert w.settings_stack.count()==11
+        assert set(w.key_fields)==set(LABELS), (set(w.key_fields),set(LABELS))
+        assert set(w.pref_controls)==set(OPTIONS), (set(w.pref_controls),set(OPTIONS))
+        w.prefs['thumbnails']=False
+        if w.list.count():
+            w.navigate(1); w.list.setCurrentRow(0); app.processEvents()
+            assert w.preview_path and w.player.source().isLocalFile()
+            w.navigate(2); app.processEvents(); assert w.editor.source and w.editor.total>0
+        for scale in (100,110,120):
+            w.prefs['text_scale']=scale; w.prefs['large_targets']=(scale==120); w.apply_preferences(refresh=False)
+            for width,height in sizes:
+                w.resize(width,height); app.processEvents()
+                for index in range(4):
+                    w.navigate(index); app.processEvents()
+                    assert w.width()<=width+2 and w.height()<=height+2, (locale,scale,width,height,w.size(),index)
+                    page=w.stack.currentWidget(); contained(page,w.stack)
+                    assert page.width()>0 and page.height()>0
+                w.navigate(1); app.processEvents()
+                assert w.library_controls_scroll.isVisible() and w.library_controls_scroll.height()>0
+                assert w.library_split.minimumHeight()==0
+                assert w.list.width()>0 and w.list.height()>0
+                contained(w.library_split,w.stack.currentWidget())
+                if w.player:
+                    ancestor=w.video.parentWidget()
+                    while ancestor is not None:
+                        assert not isinstance(ancestor,QScrollArea), 'Library video inside a scroll area'
+                        ancestor=ancestor.parentWidget()
+                    assert w.video.isVisible() and w.video.height()>0
+                    contained(w.video,w.stack.currentWidget())
+                w.navigate(2); app.processEvents()
+                if w.editor.player:
+                    ancestor=w.editor.video.parentWidget()
+                    while ancestor is not None:
+                        assert not isinstance(ancestor,QScrollArea), 'Native video inside a scroll area'
+                        ancestor=ancestor.parentWidget()
+                    assert w.editor.video.isVisible() and w.editor.video.height()>0
+                    contained(w.editor.video,w.stack.currentWidget())
+                assert w.editor.trim_scroll.isVisible() and w.editor.rail.isVisible()
+                assert w.editor.trim_scroll.height()>0 and w.editor.rail.height()>0
+                contained(w.editor.area,w.editor)
+                w.navigate(3); app.processEvents()
+                for category in range(11):
+                    w.select_settings(category); app.processEvents()
+                    assert w.settings_stack.currentIndex()==category
+                    contained(w.settings_stack.currentWidget(),w.settings_stack)
+                assert w.library_split.orientation()==w.editor.area.orientation()
+                if (width,height)==(720,1280): assert w.library_split.orientation()==Qt.Orientation.Vertical
+                if (width,height)==(1920,1080): assert w.library_split.orientation()==Qt.Orientation.Horizontal
+        if w.preview_path and w.player:
             w.navigate(1); app.processEvents()
-            assert w.library_controls_scroll.isVisible() and w.library_controls_scroll.height()>0
-            assert w.library_split.minimumHeight()==0
-            assert w.list.width()>0 and w.list.height()>0
-            contained(w.library_split,w.stack.currentWidget())
-            if w.player:
-                ancestor=w.video.parentWidget()
-                while ancestor is not None:
-                    assert not isinstance(ancestor,QScrollArea), 'Library video inside a scroll area'
-                    ancestor=ancestor.parentWidget()
-                assert w.video.isVisible() and w.video.height()>0
-                contained(w.video,w.stack.currentWidget())
-            w.navigate(2); app.processEvents()
-            if w.editor.player:
-                ancestor=w.editor.video.parentWidget()
-                while ancestor is not None:
-                    assert not isinstance(ancestor,QScrollArea), 'Native video inside a scroll area'
-                    ancestor=ancestor.parentWidget()
-                assert w.editor.video.isVisible() and w.editor.video.height()>0
-                contained(w.editor.video,w.stack.currentWidget())
-            assert w.editor.trim_scroll.isVisible() and w.editor.rail.isVisible()
-            assert w.editor.trim_scroll.height()>0 and w.editor.rail.height()>0
-            contained(w.editor.area,w.editor)
-            w.navigate(3); app.processEvents()
-            for category in range(11):
-                w.select_settings(category); app.processEvents()
-                assert w.settings_stack.currentIndex()==category
-                contained(w.settings_stack.currentWidget(),w.settings_stack)
-            assert w.library_split.orientation()==w.editor.area.orientation()
-            if (width,height)==(720,1280): assert w.library_split.orientation()==Qt.Orientation.Vertical
-            if (width,height)==(1920,1080): assert w.library_split.orientation()==Qt.Orientation.Horizontal
-    if w.preview_path and w.player:
-        w.navigate(1); app.processEvents()
-        dialog=ui.show_fullscreen(w,w.player,w.video,w.play); app.processEvents()
-        assert w.player.videoOutput()==dialog.video
-        dialog.reject(); app.processEvents(); assert w.player.videoOutput()==w.video
-    w.close(); w.deleteLater(); QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete.value); app.processEvents()
+            dialog=ui.show_fullscreen(w,w.player,w.video,w.play); app.processEvents()
+            assert w.player.videoOutput()==dialog.video
+            dialog.reject(); app.processEvents(); assert w.player.videoOutput()==w.video
+    finally:
+        w.exiting=True; w.close(); w.deleteLater(); QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete.value); app.processEvents()
 '''
         with tempfile.TemporaryDirectory() as directory:
             home=Path(directory); clips=home/'Videos/CrimsonClips'; clips.mkdir(parents=True)
