@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4 — Library layout hotfix
+
+- Keep library playback outside scroll areas, with a separate scrollable playback and management controls panel.
+- Remove rigid library splitter height and allow the video preview to shrink on small displays.
+- Preserve the editor fix, direct seeking, existing preferences and recording behavior.
+- Library fix awaiting live Wayland verification.
+
 ## 1.0.3 — Editor layout hotfix
 
 - Keep the native editor video surface outside scroll areas; scroll trim, audio and export controls separately.

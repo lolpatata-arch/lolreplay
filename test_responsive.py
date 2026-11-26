@@ -42,6 +42,19 @@ class ResponsiveTests(unittest.TestCase):
         self.assertIn('l.addWidget(self.video,3)',editor)
         self.assertNotIn('trim_layout.addWidget(self.video',editor)
 
+    def test_library_scroll_boundaries(self):
+        ui=(ROOT/'lolreplay-ui').read_text()
+        tree=ast.parse(ui)
+        library=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='build_library')
+        source=ast.get_source_segment(ui,library)
+        self.assertIn("self.page(t('Clips'),'',scroll=False)",source)
+        self.assertIn('pv.addWidget(self.video,3)',source)
+        self.assertIn('self.library_controls_scroll=PageScroll(controls)',source)
+        self.assertIn('cv.addWidget(self.seek)',source)
+        self.assertNotIn('cv.addWidget(self.video',source)
+        self.assertIn('self.library_split.setMinimumHeight(0)',ui)
+        self.assertNotIn('self.library_split.setMinimumHeight(590',ui)
+
     @unittest.skipUnless(importlib.util.find_spec('PySide6'), 'PySide6 not installed; run on a desktop with Qt')
     def test_qt_offscreen(self):
         # Use a separate process and temporary home; do not touch the user's library.
@@ -70,6 +83,15 @@ for locale in ('en_US','es_ES','de_DE','ja_JP'):
         w.resize(width,height); app.processEvents()
         for index in range(4):
             w.navigate(index); app.processEvents()
+        w.navigate(1); app.processEvents()
+        assert w.library_controls_scroll.isVisible()
+        assert w.library_split.minimumHeight()==0
+        if w.player:
+            ancestor=w.video.parentWidget()
+            while ancestor is not None:
+                assert not isinstance(ancestor,QScrollArea), 'Library video inside a scroll area'
+                ancestor=ancestor.parentWidget()
+            assert w.video.isVisible()
         w.navigate(2); app.processEvents()
         if w.editor.player:
             ancestor=w.editor.video.parentWidget()
