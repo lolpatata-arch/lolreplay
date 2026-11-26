@@ -9,7 +9,7 @@ import lolreplay_updater as u
 import install
 
 
-def release(tag='v1.8.0',preview=False,data=b'x'):
+def release(tag='v1.9.0',preview=False,data=b'x'):
     name=f'lolreplay-{tag}.zip'
     return {'tag_name':tag,'draft':False,'prerelease':preview,'body':'Changes','assets':[{'name':name,'browser_download_url':f'https://github.com/{u.REPO}/releases/download/{tag}/{name}','state':'uploaded','size':len(data),'digest':'sha256:'+hashlib.sha256(data).hexdigest()}]}
 
@@ -17,7 +17,7 @@ def archive(extra=None):
     out=io.BytesIO()
     with zipfile.ZipFile(out,'w') as z:
         for name in ('install.py','lolreplay','lolreplay-ui','crimson-clips','lolreplay.png','lolreplay_updater.py'):
-            z.writestr('lolreplay-1.8.0/'+name, "print('lolreplay 1.8.0')" if name=='lolreplay' else 'test')
+            z.writestr('lolreplay-1.9.0/'+name, "print('lolreplay 1.9.0')" if name=='lolreplay' else 'test')
         if extra: z.writestr(extra,'bad')
     return out.getvalue()
 
@@ -34,20 +34,20 @@ class UpdaterTests(unittest.TestCase):
             data=archive(); r=u.releases([release(data=data)])[0]
             self.assertTrue((u.extract(data,r,Path(d))/'install.py').is_file())
             with self.assertRaises(u.UpdateError): u.extract(data+b'x',r,Path(d))
-        for name in ('../escape','lolreplay-1.8.0/../escape','/tmp/escape','lolreplay-1.8.0/.git/config'):
+        for name in ('../escape','lolreplay-1.9.0/../escape','/tmp/escape','lolreplay-1.9.0/.git/config'):
             with tempfile.TemporaryDirectory() as d:
                 data=archive(name); r=u.releases([release(data=data)])[0]
                 with self.assertRaises(u.UpdateError): u.extract(data,r,Path(d))
     def test_no_install_without_confirmation(self):
         with patch.object(u,'available',return_value=u.releases([release()])), patch.object(u,'install_release') as action, patch('builtins.input',return_value='n'):
-            self.assertEqual(u.main(['v1.8.0']),0); action.assert_not_called()
-            self.assertEqual(u.main(['v1.8.0','--yes']),1); action.assert_not_called()
+            self.assertEqual(u.main(['v1.9.0']),0); action.assert_not_called()
+            self.assertEqual(u.main(['v1.9.0','--yes']),1); action.assert_not_called()
     def test_recorder_guard_and_changed_digest(self):
         with patch.object(u,'stopped',side_effect=u.UpdateError('running')), patch.object(u,'available') as check:
-            with self.assertRaises(u.UpdateError): u.install_release('v1.8.0')
+            with self.assertRaises(u.UpdateError): u.install_release('v1.9.0')
             check.assert_not_called()
         with patch.object(u,'stopped'), patch.object(u,'available',return_value=u.releases([release()])), patch.object(u,'fetch') as download:
-            with self.assertRaises(u.UpdateError): u.install_release('v1.8.0',digest='changed')
+            with self.assertRaises(u.UpdateError): u.install_release('v1.9.0',digest='changed')
             download.assert_not_called()
     def test_rollback(self):
         with tempfile.TemporaryDirectory() as d:
