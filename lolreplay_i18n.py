@@ -3011,3 +3011,128 @@ _library_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _library_rows})
+
+_duration_rows = [
+  [
+    "Filter by date",
+    "Filtrar por fecha",
+    "Filtrer par date",
+    "Nach Datum filtern",
+    "Фильтр по дате",
+    "Filtruj według daty",
+    "日付で絞り込む",
+    "按日期筛选",
+    "Filtra per data"
+  ],
+  [
+    "Any date",
+    "Cualquier fecha",
+    "Toutes les dates",
+    "Beliebiges Datum",
+    "Любая дата",
+    "Dowolna data",
+    "すべての日付",
+    "不限日期",
+    "Qualsiasi data"
+  ],
+  [
+    "Last 24 hours",
+    "Últimas 24 horas",
+    "Dernières 24 heures",
+    "Letzte 24 Stunden",
+    "Последние 24 часа",
+    "Ostatnie 24 godziny",
+    "過去24時間",
+    "过去24小时",
+    "Ultime 24 ore"
+  ],
+  [
+    "Last 7 days",
+    "Últimos 7 días",
+    "7 derniers jours",
+    "Letzte 7 Tage",
+    "Последние 7 дней",
+    "Ostatnie 7 dni",
+    "過去7日間",
+    "过去7天",
+    "Ultimi 7 giorni"
+  ],
+  [
+    "Last 30 days",
+    "Últimos 30 días",
+    "30 derniers jours",
+    "Letzte 30 Tage",
+    "Последние 30 дней",
+    "Ostatnie 30 dni",
+    "過去30日間",
+    "过去30天",
+    "Ultimi 30 giorni"
+  ],
+  [
+    "Filter by duration",
+    "Filtrar por duración",
+    "Filtrer par durée",
+    "Nach Dauer filtern",
+    "Фильтр по длительности",
+    "Filtruj według czasu trwania",
+    "長さで絞り込む",
+    "按时长筛选",
+    "Filtra per durata"
+  ],
+  [
+    "Any duration",
+    "Cualquier duración",
+    "Toutes les durées",
+    "Beliebige Dauer",
+    "Любая длительность",
+    "Dowolny czas trwania",
+    "すべての長さ",
+    "不限时长",
+    "Qualsiasi durata"
+  ],
+  [
+    "Up to 30 sec",
+    "Hasta 30 s",
+    "Jusqu’à 30 s",
+    "Bis 30 s",
+    "До 30 с",
+    "Do 30 s",
+    "30秒以下",
+    "不超过30秒",
+    "Fino a 30 s"
+  ],
+  [
+    "30 sec to 2 min",
+    "Más de 30 s a 2 min",
+    "Plus de 30 s à 2 min",
+    "Über 30 s bis 2 min",
+    "От 30 с до 2 мин",
+    "Ponad 30 s do 2 min",
+    "30秒超〜2分",
+    "超过30秒至2分钟",
+    "Oltre 30 s fino a 2 min"
+  ],
+  [
+    "Over 2 min",
+    "Más de 2 min",
+    "Plus de 2 min",
+    "Über 2 min",
+    "Более 2 мин",
+    "Ponad 2 min",
+    "2分超",
+    "超过2分钟",
+    "Oltre 2 min"
+  ],
+  [
+    "Indexing durations…",
+    "Analizando duraciones…",
+    "Analyse des durées…",
+    "Dauern werden ermittelt…",
+    "Анализ длительности…",
+    "Analizowanie czasu trwania…",
+    "長さを解析中…",
+    "正在分析时长…",
+    "Analisi delle durate…"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _duration_rows})

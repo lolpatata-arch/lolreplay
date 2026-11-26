@@ -185,7 +185,7 @@ class Window(QMainWindow):
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
         if self.library_sort not in ('newest','oldest','largest','name'): self.library_sort='newest'
-        self.library_db=library.Library(Path(os.environ.get('XDG_STATE_HOME',str(HOME/'.local/state')))/'lolreplay/library.sqlite3'); self.clip_metadata={}; self.library_keys={}
+        self.library_db=library.Library(Path(os.environ.get('XDG_STATE_HOME',str(HOME/'.local/state')))/'lolreplay/library.sqlite3'); self.clip_metadata={}; self.library_keys={}; self.durations={}; self.probe_queue=[]; self.probe_current=None; self.probe_failed=set()
         self.update_custom_palette()
         if not isinstance(self.theme,str) or self.theme not in THEMES: self.theme='Crimson Red'
         self.action=QProcess(self); self.action.finished.connect(self.action_done); self.action.errorOccurred.connect(self.action_error)
@@ -193,6 +193,8 @@ class Window(QMainWindow):
         self.thumb=QProcess(self); self.thumb.finished.connect(self.thumbnail_done); self.thumb.errorOccurred.connect(self.thumbnail_error)
         self.action_watch=QTimer(self); self.action_watch.setSingleShot(True); self.action_watch.timeout.connect(self.action.kill)
         self.poll_watch=QTimer(self); self.poll_watch.setSingleShot(True); self.poll_watch.timeout.connect(self.poll.kill)
+        self.probe=QProcess(self); self.probe.finished.connect(self.duration_done); self.probe.errorOccurred.connect(self.duration_error)
+        self.probe_watch=QTimer(self); self.probe_watch.setSingleShot(True); self.probe_watch.timeout.connect(self.probe.kill)
         self.thumb_watch=QTimer(self); self.thumb_watch.setSingleShot(True); self.thumb_watch.timeout.connect(self.thumb.kill)
         root=QWidget(); self.setCentralWidget(root); outer=QHBoxLayout(root); outer.setContentsMargins(0,0,0,0); outer.setSpacing(0)
         sidebar=QFrame(); sidebar.setObjectName('sidebar'); self.sidebar=sidebar; sidebar.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding); side=QVBoxLayout(sidebar); self.side_layout=side; side.setContentsMargins(14,23,14,18); side.setSpacing(4)
@@ -290,6 +292,12 @@ class Window(QMainWindow):
         row.addLayout(tools); v.addLayout(row)
         self.smart_filters=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_filter=QCheckBox(t('Favorites only')); self.favorite_filter.toggled.connect(lambda _:self.filter_library(self.search.text())); self.smart_filters.addWidget(self.favorite_filter)
         self.game_filter=QComboBox(); self.game_filter.addItem(t('All games'),''); self.game_filter.setAccessibleName(t('Filter by game')); fit_combo(self.game_filter); self.game_filter.currentIndexChanged.connect(lambda _:self.filter_library(self.search.text())); self.smart_filters.addWidget(self.game_filter,1); v.addLayout(self.smart_filters)
+        periods=QHBoxLayout(); self.date_filter=QComboBox(); self.date_filter.setAccessibleName(t('Filter by date')); fit_combo(self.date_filter)
+        for name,days in [(t('Any date'),0),(t('Last 24 hours'),1),(t('Last 7 days'),7),(t('Last 30 days'),30)]: self.date_filter.addItem(name,days)
+        self.length_filter=QComboBox(); self.length_filter.setAccessibleName(t('Filter by duration')); fit_combo(self.length_filter)
+        for name,key in [(t('Any duration'),''),(t('Up to 30 sec'),'short'),(t('30 sec to 2 min'),'medium'),(t('Over 2 min'),'long')]: self.length_filter.addItem(name,key)
+        for control in (self.date_filter,self.length_filter): control.currentIndexChanged.connect(lambda _:self.filter_library(self.search.text())); periods.addWidget(control,1)
+        v.addLayout(periods)
         split=QSplitter(Qt.Orientation.Horizontal); self.library_split=split; split.setChildrenCollapsible(False)
         self.list=ResponsiveClipList(); self.list.setMinimumSize(120,100); self.setup_tiles(self.list,222); self.list.itemClicked.connect(self.click_clip); self.list.itemDoubleClicked.connect(self.double_click_clip); self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.list.customContextMenuRequested.connect(self.clip_menu); self.list.currentItemChanged.connect(self.select_clip); split.addWidget(self.list)
         preview=panel(); preview.setObjectName('playerPane'); preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Expanding); pv=QVBoxLayout(preview); pv.setContentsMargins(8,0,8,4); pv.setSpacing(12); preview_heading=label(t('NOW VIEWING'),'eyebrow'); preview_heading.setWordWrap(True); preview_heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(preview_heading); self.preview_title=label(t('Select a clip'),'section'); self.preview_title.setWordWrap(False); self.preview_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(self.preview_title)
@@ -444,7 +452,7 @@ class Window(QMainWindow):
                 self.list.setCurrentRow(i); self.play(); break
 
     def reset_library_filters(self):
-        self.favorite_filter.setChecked(False); self.game_filter.setCurrentIndex(0); self.search.clear()
+        self.favorite_filter.setChecked(False); self.game_filter.setCurrentIndex(0); self.date_filter.setCurrentIndex(0); self.length_filter.setCurrentIndex(0); self.search.clear()
 
     def metadata_for(self,path):
         return self.clip_metadata.get(self.library_keys.get(path),library.EMPTY)
@@ -456,13 +464,15 @@ class Window(QMainWindow):
         self.game_filter.setCurrentIndex(max(0,self.game_filter.findData(current))); self.game_filter.blockSignals(False)
 
     def filter_library(self,text):
-        favorites=self.favorite_filter.isChecked(); game=self.game_filter.currentData() or ''
+        favorites=self.favorite_filter.isChecked(); game=self.game_filter.currentData() or ''; days=self.date_filter.currentData() or 0; length=self.length_filter.currentData() or ''
         for i in range(self.list.count()):
             it=self.list.item(i); path=it.data(Qt.ItemDataRole.UserRole)
-            it.setHidden(not library.matches(Path(path).stem,self.metadata_for(path),text,favorites,game))
+            key=self.library_keys.get(path); timing=not key or library.time_matches(key[1],self.durations.get(key),days,length)
+            it.setHidden(not timing or not library.matches(Path(path).stem,self.metadata_for(path),text,favorites,game))
         it=self.list.currentItem()
         if it and it.isHidden(): self.list.setCurrentRow(-1)
-        visible=sum(not self.list.item(i).isHidden() for i in range(self.list.count())); self.search_count.setText(f'{visible} / {self.list.count()}' if text or favorites or game else clip_count(visible))
+        visible=sum(not self.list.item(i).isHidden() for i in range(self.list.count())); self.search_count.setText(f'{visible} / {self.list.count()}' if text or favorites or game or days or length else clip_count(visible))
+        if length and (self.probe_queue or self.probe_current): self.search_count.setText(self.search_count.text()+' · '+t('Indexing durations…'))
 
     def save_metadata(self,path,value):
         key=self.library_keys.get(path)
@@ -1250,14 +1260,16 @@ class Window(QMainWindow):
         if files==self.snapshot and not force: return
         selected=self.list.currentItem(); selected=selected.data(Qt.ItemDataRole.UserRole) if selected else None
         self.library_keys={key[0]:key for key in files}
-        try: self.clip_metadata=self.library_db.load()
+        try:
+            self.clip_metadata=self.library_db.load(); self.durations=self.library_db.load_durations()
         except (OSError,sqlite3.Error) as exc: self.message.setText(t('Library metadata unavailable')+': '+str(exc))
+        self.probe_failed.intersection_update(files); self.probe_queue=[key for key in files if key[2]>0 and key not in self.durations and key not in self.probe_failed and key!=self.probe_current]
         self.refresh_game_filter()
         self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys} if self.prefs['thumbnails'] else {}
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
         recent_paths={f[0]:i for i,f in enumerate(files[1:7])}; recent_items={}
         for index,key in enumerate(ordered):
-            path,mtime,size=key; p=Path(path); stamp=QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm'); item=QListWidgetItem(f'{p.stem}\n{stamp} · {size/1024**2:.0f} MB'); item.setData(Qt.ItemDataRole.UserRole,path); favorite,game,labels=self.metadata_for(path); item.setData(Qt.ItemDataRole.UserRole+1,favorite); item.setToolTip('\n'.join([path,game,', '.join(labels)]).strip())
+            path,mtime,size=key; p=Path(path); stamp=QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm'); duration=self.durations.get(key); suffix=' · '+library.duration_text(duration) if duration is not None else ''; item=QListWidgetItem(f'{p.stem}\n{stamp} · {size/1024**2:.0f} MB'+suffix); item.setData(Qt.ItemDataRole.UserRole,path); favorite,game,labels=self.metadata_for(path); item.setData(Qt.ItemDataRole.UserRole+1,favorite); item.setToolTip('\n'.join([path,game,', '.join(labels)]).strip())
             pix=self.thumbs.get(key); item.setIcon(QIcon(pix) if pix is not None else self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)); self.list.addItem(item)
             if path in recent_paths: recent_items[recent_paths[path]]=item.clone()
             if path==selected: self.list.setCurrentItem(item)
@@ -1268,24 +1280,64 @@ class Window(QMainWindow):
         self.next_thumbnail()
 
     def next_thumbnail(self):
-        if not self.prefs['thumbnails'] or not self.foreground() or getattr(self,'closing',False) or self.editor.busy() or self.thumb.state()!=QProcess.ProcessState.NotRunning or not self.thumb_queue or not shutil.which('ffmpeg'): return
+        if not self.foreground() or getattr(self,'closing',False) or self.editor.busy() or any(p.state()!=QProcess.ProcessState.NotRunning for p in (self.thumb,self.probe)): return
+        thumb_ready=self.prefs['thumbnails'] and bool(self.thumb_queue) and shutil.which('ffmpeg')
+        if self.probe_queue and shutil.which('ffprobe') and (self.length_filter.currentData() or not thumb_ready):
+            self.probe_current=self.probe_queue.pop(0); path=self.probe_current[0]
+            cmd=['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',path]
+            if shutil.which('nice'): cmd=['nice','-n','10',*cmd]
+            self.probe.start(cmd[0],cmd[1:]); self.probe_watch.start(10000); return
+        if not thumb_ready: return
         self.thumb_current=self.thumb_queue.pop(0); path=self.thumb_current[0]
+        try: cached=self.library_db.thumbnail(self.thumb_current)
+        except (OSError,sqlite3.Error): cached=None
+        pix=QPixmap()
+        if cached and pix.loadFromData(cached,'PNG'):
+            key=self.thumb_current; self.thumb_current=None; self.apply_thumbnail(key,pix); QTimer.singleShot(25,self.next_thumbnail); return
         cmd=perf.thumbnail_command(path); self.thumb.start(cmd[0],cmd[1:]); self.thumb_watch.start(10000)
+
+    def apply_thumbnail(self,key,pix):
+        if not self.prefs['thumbnails'] or key not in (self.snapshot or []): return
+        self.thumbs[key]=pix; self.editor.update_thumbnail(key[0],pix)
+        if self.snapshot and key==self.snapshot[0]: self.update_latest()
+        for view in (self.list,self.recent):
+            for i in range(view.count()):
+                it=view.item(i)
+                if it.data(Qt.ItemDataRole.UserRole)==key[0]: it.setIcon(QIcon(pix)); break
 
     def thumbnail_done(self,code,exit_status):
         self.thumb_watch.stop(); data=bytes(self.thumb.readAllStandardOutput()); self.thumb.readAllStandardError(); key=self.thumb_current; self.thumb_current=None
         pix=QPixmap()
         if self.prefs['thumbnails'] and key and code==0 and pix.loadFromData(data,'PNG') and key in (self.snapshot or []):
-            self.thumbs[key]=pix; self.editor.update_thumbnail(key[0],pix)
-            if self.snapshot and key==self.snapshot[0]: self.update_latest()
-            for view in (self.list,self.recent):
-                for i in range(view.count()):
-                    it=view.item(i)
-                    if it.data(Qt.ItemDataRole.UserRole)==key[0]: it.setIcon(QIcon(pix)); break
+            try: self.library_db.save_thumbnail(key,data)
+            except (OSError,sqlite3.Error): pass
+            self.apply_thumbnail(key,pix)
         QTimer.singleShot(250,self.next_thumbnail)
 
     def thumbnail_error(self,error):
-        if error==QProcess.ProcessError.FailedToStart: self.thumb_watch.stop(); self.thumb_current=None; self.thumb_queue=[]
+        if error==QProcess.ProcessError.FailedToStart:
+            self.thumb_watch.stop(); self.thumb_current=None; self.thumb_queue=[]; QTimer.singleShot(250,self.next_thumbnail)
+
+    def duration_done(self,code,exit_status):
+        self.probe_watch.stop(); raw=bytes(self.probe.readAllStandardOutput()).decode(errors='replace'); self.probe.readAllStandardError(); key=self.probe_current; self.probe_current=None
+        if key and key in (self.snapshot or []):
+            seconds=library.parse_duration(raw) if code==0 and exit_status==QProcess.ExitStatus.NormalExit else None
+            if seconds is None: self.probe_failed.add(key)
+            else:
+                self.durations[key]=seconds
+                try: self.library_db.save_duration(key,seconds)
+                except (OSError,sqlite3.Error): pass
+                for view in (self.list,self.recent):
+                    for i in range(view.count()):
+                        it=view.item(i)
+                        if it.data(Qt.ItemDataRole.UserRole)==key[0]:
+                            it.setText(it.text()+' · '+library.duration_text(seconds)); break
+            if self.length_filter.currentData(): self.filter_library(self.search.text())
+        QTimer.singleShot(250,self.next_thumbnail)
+
+    def duration_error(self,error):
+        if error==QProcess.ProcessError.FailedToStart:
+            self.probe_watch.stop(); self.probe_current=None; self.probe_queue=[]; self.filter_library(self.search.text()); QTimer.singleShot(250,self.next_thumbnail)
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -1299,7 +1351,7 @@ class Window(QMainWindow):
         except OSError: pass
         self.closing=True; self.timer.stop()
         if self.player: self.player.stop()
-        for p in (self.poll,self.thumb):
+        for p in (self.poll,self.thumb,self.probe):
             if p.state()!=QProcess.ProcessState.NotRunning: p.kill(); p.waitForFinished(1000)
         event.accept()
 

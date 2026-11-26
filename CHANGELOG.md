@@ -5,6 +5,8 @@
 - Persistent local favorites, manually assigned games and tags using SQLite.
 - Search by clip name, game or tags; filter favorites and games.
 - Preserve metadata when renaming clips within the application.
+- Add rolling date and media-duration filters; index actual durations with low-priority ffprobe jobs in the foreground.
+- Cache up to 128 generated thumbnails locally (maximum 1 MiB per image); invalidate by file identity.
 - No recording changes or automatic media deletion.
 - GUI and desktop verification pending.
 

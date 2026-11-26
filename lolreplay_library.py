@@ -2,6 +2,8 @@
 from contextlib import closing, contextmanager
 from pathlib import Path
 import sqlite3
+import math
+import time
 
 
 def tags(value):
@@ -18,6 +20,35 @@ def matches(name, metadata, query='', favorites=False, game=''):
     return all(word in haystack for word in query.casefold().split())
 
 
+def time_matches(mtime_ns, duration, days=0, length='', now=None):
+    if days and mtime_ns / 1e9 < (time.time() if now is None else now) - days * 86400:
+        return False
+    if not length:
+        return True
+    if duration is None:
+        return False
+    if length == 'short':
+        return duration <= 30
+    if length == 'medium':
+        return 30 < duration <= 120
+    if length == 'long':
+        return duration > 120
+    return False
+
+
+def parse_duration(raw):
+    try:
+        value = float(raw.strip())
+        return value if math.isfinite(value) and value > 0 else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def duration_text(seconds):
+    n = max(0, round(seconds))
+    return f'{n // 60}:{n % 60:02d}'
+
+
 EMPTY = (False, '', ())
 
 
@@ -30,6 +61,8 @@ class Library:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(self.path, timeout=0.25)) as db, db:
             db.execute('CREATE TABLE IF NOT EXISTS clips (path TEXT, mtime INTEGER, size INTEGER, favorite INTEGER NOT NULL, game TEXT NOT NULL, tags TEXT NOT NULL, PRIMARY KEY(path, mtime, size))')
+            db.execute('CREATE TABLE IF NOT EXISTS durations (path TEXT, mtime INTEGER, size INTEGER, seconds REAL NOT NULL, PRIMARY KEY(path,mtime,size))')
+            db.execute('CREATE TABLE IF NOT EXISTS thumbnails (path TEXT, mtime INTEGER, size INTEGER, png BLOB NOT NULL, saved INTEGER NOT NULL, PRIMARY KEY(path,mtime,size))')
             yield db
 
     def load(self):
@@ -47,3 +80,26 @@ class Library:
     def rename(self, old, new):
         with self.connection() as db:
             db.execute('UPDATE clips SET path=?, mtime=?, size=? WHERE path=? AND mtime=? AND size=?', (*new, *old))
+
+    def load_durations(self):
+        with self.connection() as db:
+            return {(p,m,s):v for p,m,s,v in db.execute('SELECT path,mtime,size,seconds FROM durations')}
+
+    def save_duration(self, key, seconds):
+        if seconds is None or not math.isfinite(seconds) or seconds <= 0:
+            return
+        with self.connection() as db:
+            db.execute('INSERT OR REPLACE INTO durations VALUES (?,?,?,?)', (*key,seconds))
+            db.execute('DELETE FROM durations WHERE rowid IN (SELECT rowid FROM durations ORDER BY rowid DESC LIMIT -1 OFFSET 10000)')
+
+    def thumbnail(self, key):
+        with self.connection() as db:
+            row = db.execute('SELECT png FROM thumbnails WHERE path=? AND mtime=? AND size=?',key).fetchone()
+            return row[0] if row else None
+
+    def save_thumbnail(self, key, png):
+        if not png or len(png) > 1024*1024:
+            return
+        with self.connection() as db:
+            db.execute('INSERT OR REPLACE INTO thumbnails VALUES (?,?,?,?,?)',(*key,png,time.time_ns()))
+            db.execute('DELETE FROM thumbnails WHERE rowid IN (SELECT rowid FROM thumbnails ORDER BY saved DESC,rowid DESC LIMIT -1 OFFSET 128)')
