@@ -105,6 +105,16 @@ for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
         assert w.settings_stack.count()==11
+        assert len(w.dashboard_cards)==4
+        assert w.dashboard_total.text()==str(len(w.snapshot or []))
+        assert w.dashboard_favorites.text()==str(sum(bool(w.metadata_for(key[0])[0]) for key in (w.snapshot or [])))
+        assert w.dashboard_history.text()==w.format_duration_label(w.buffer_seconds)
+        w.reflow_dashboard(False,False)
+        assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_hero))==(0,0,1,2)
+        assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_gallery))==(2,0,1,3)
+        w.reflow_dashboard(True,True)
+        assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.overview_rail))==(0,0,1,1)
+        w.update_layout(force=True)
         assert w.settings_list.objectName()=='settingsNavigation'
         assert w.background_preview.objectName()=='wallpaperPreview'
         assert w.background_btn.property('lrIcon')=='image'
@@ -147,6 +157,10 @@ for locale in LANGUAGES:
                     assert w.width()<=width+2 and w.height()<=height+2, (locale,scale,width,height,w.size(),index)
                     page=w.stack.currentWidget(); contained(page,w.stack)
                     assert page.width()>0 and page.height()>0
+                w.navigate(0); app.processEvents()
+                for card in w.dashboard_cards:
+                    assert card.isVisible() and card.width()>0 and card.height()>0
+                assert w.start_btn.isVisible() and w.save_btn.isVisible() and w.stop_btn.isVisible()
                 w.navigate(1); app.processEvents()
                 assert w.library_controls_scroll.isVisible() and w.library_controls_scroll.height()>0
                 assert w.library_split.minimumHeight()==0

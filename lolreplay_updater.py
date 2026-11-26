@@ -14,7 +14,7 @@ import urllib.request
 from urllib.parse import urlsplit
 import zipfile
 
-VERSION = '1.8.0'
+VERSION = '1.9.0'
 REPO = 'lolpatata-arch/lolreplay'
 API = f'https://api.github.com/repos/{REPO}/releases'
 MAX_ZIP = 32 * 1024 * 1024
