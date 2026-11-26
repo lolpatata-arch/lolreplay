@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 1.7.1: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.7.2: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
@@ -87,10 +87,13 @@ class ClipDelegate(QStyledItemDelegate):
         bg,panel,border,accent,bright=THEMES[self.window.theme]
         selected=bool(option.state & QStyle.StateFlag.State_Selected)
         hovered=bool(option.state & QStyle.StateFlag.State_MouseOver)
-        painter.setPen(QPen(QColor(bright),1.4) if selected else Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(panel if hovered or selected else bg)); painter.drawRoundedRect(QRectF(r),6,6)
+        outline=QColor(accent if selected else border)
+        painter.setPen(QPen(outline,1.5 if selected else 1))
+        painter.setBrush(QColor(panel).lighter(112 if hovered else 100)); painter.drawRoundedRect(QRectF(r),9,9)
+        if selected:
+            painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(accent)); painter.drawRoundedRect(QRectF(r.x()+2,r.y()+9,3,max(1,r.height()-18)),1.5,1.5)
         a=QRect(r.x()+3,r.y()+3,r.width()-6,int((r.width()-6)*9/16))
-        path=QPainterPath(); path.addRoundedRect(QRectF(a),4,4)
+        path=QPainterPath(); path.addRoundedRect(QRectF(a),7,7)
         painter.save(); painter.setClipPath(path); painter.fillRect(a,QColor('#09090b'))
         pix=index.data(Qt.ItemDataRole.DecorationRole)
         if isinstance(pix,QIcon):
@@ -99,6 +102,8 @@ class ClipDelegate(QStyledItemDelegate):
                 if image.width()>32:
                     image=image.scaled(a.size(),Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
                 painter.drawPixmap(a.x()+(a.width()-image.width())//2,a.y()+(a.height()-image.height())//2,image)
+        if hovered or selected:
+            shade=QLinearGradient(0,a.top(),0,a.bottom()); shade.setColorAt(0,QColor(0,0,0,0)); shade.setColorAt(1,QColor(0,0,0,100)); painter.fillRect(a,QBrush(shade))
         painter.restore()
         game=index.data(Qt.ItemDataRole.UserRole+2)
         if game:
@@ -115,6 +120,8 @@ class ClipDelegate(QStyledItemDelegate):
         f.setPixelSize(round(11*self.window.prefs['text_scale']/100)); f.setWeight(QFont.Weight.Normal); painter.setFont(f); painter.setPen(QColor('#eeeeee' if self.window.prefs['high_contrast'] else '#a3a1aa'))
         meta=parts[1] if len(parts)>1 else ''; meta=painter.fontMetrics().elidedText(meta,Qt.TextElideMode.ElideRight,r.width()-22)
         painter.drawText(QRect(r.x()+11,a.bottom()+round(29*self.window.prefs['text_scale']/100),r.width()-22,round(17*self.window.prefs['text_scale']/100)),Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter,meta)
+        if option.state & QStyle.StateFlag.State_HasFocus and self.window.prefs['strong_focus']:
+            painter.setBrush(Qt.BrushStyle.NoBrush); painter.setPen(QPen(QColor(bright),1.2,Qt.PenStyle.DashLine)); painter.drawRoundedRect(QRectF(r.adjusted(2,2,-2,-2)),7,7)
         painter.restore()
 
 class Artwork(QWidget):
@@ -221,10 +228,10 @@ class Window(QMainWindow):
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.1','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.2','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
-        topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
-        col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
+        topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(8,8); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
+        col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setObjectName('footerMessage'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -256,7 +263,7 @@ class Window(QMainWindow):
         details=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.latest_details=details; details.setContentsMargins(6,2,6,0); info=QVBoxLayout(); info.setSpacing(3)
         self.latest_title=label(t('No recordings yet'),'section'); self.latest_title.setWordWrap(True); self.latest_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); info.addWidget(self.latest_title)
         self.latest_meta=label(self.hotkey_text('Start replay, then press F8 to save a clip.'),'muted'); self.latest_meta.setWordWrap(True); info.addWidget(self.latest_meta); details.addLayout(info,1)
-        self.latest_edit=decorate(button(t('Edit clip'),self.edit_latest),'edit'); self.latest_edit.setEnabled(False); details.addWidget(self.latest_edit); self.latest_btn=decorate(button(t('Watch'),self.open_latest,'primary'),'play','#ffffff'); self.latest_btn.setEnabled(False); details.addWidget(self.latest_btn); self.background_btn=button(t('Change background'),lambda:self.background_menu(self.art.rect().center()),'quiet'); details.addWidget(self.background_btn); fv.addLayout(details); left.addWidget(feature,3)
+        self.latest_edit=decorate(button(t('Edit clip'),self.edit_latest),'edit'); self.latest_edit.setEnabled(False); details.addWidget(self.latest_edit); self.latest_btn=decorate(button(t('Watch'),self.open_latest,'primary'),'play','#ffffff'); self.latest_btn.setEnabled(False); details.addWidget(self.latest_btn); self.background_btn=decorate(button(t('Change background'),lambda:self.background_menu(self.art.rect().center()),'quiet'),'image'); details.addWidget(self.background_btn); fv.addLayout(details); left.addWidget(feature,3)
         row=QHBoxLayout(); row.addWidget(label(t('Recent clips'),'section')); row.addStretch(); self.clip_count=label(clip_count(0),'muted'); row.addWidget(self.clip_count); left.addLayout(row)
         self.recent=ResponsiveClipList(); self.setup_tiles(self.recent,204); self.recent.setAccessibleName(t('Recent clips')); self.recent.setMinimumHeight(170); self.recent.setMaximumHeight(300); self.recent.itemClicked.connect(self.open_recent); left.addWidget(self.recent,1)
         self.recent_empty=QFrame(); self.recent_empty.setObjectName('collectionStrip'); er=QHBoxLayout(self.recent_empty); er.setContentsMargins(14,12,14,12); er.setSpacing(12)
@@ -708,7 +715,7 @@ class Window(QMainWindow):
     def build_settings(self):
         v=self.page(t('Settings'),'',scroll=False)
         self.settings_selector=fit_combo(QComboBox()); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
-        settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setAccessibleName(t('Settings')); self.settings_list.setWordWrap(True); self.settings_list.setMaximumWidth(220); self.settings_list.setMinimumWidth(170); settings_area.addWidget(self.settings_list)
+        settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setObjectName('settingsNavigation'); self.settings_list.setAccessibleName(t('Settings')); self.settings_list.setWordWrap(True); self.settings_list.setMaximumWidth(220); self.settings_list.setMinimumWidth(170); settings_area.addWidget(self.settings_list)
         tabs=PageStack(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
         v=self.settings_tab(tabs,t('Appearance'))
         langrow=self.settings_row(); langrow.addWidget(label(t('Interface language'),'section')); self.language_selector=QComboBox(); fit_combo(self.language_selector)
@@ -728,7 +735,7 @@ class Window(QMainWindow):
         wallpaper=panel(); wl=QVBoxLayout(wallpaper); wl.setContentsMargins(14,12,14,12)
         wl.addWidget(label(t('Replay background'),'section')); self.background_choice=fit_combo(QComboBox()); self.background_choice.setAccessibleName(t('Replay background'))
         for mode in backgrounds.MODES: self.background_choice.addItem(t(backgrounds.LABELS[mode]),mode)
-        wl.addWidget(self.background_choice); self.background_preview=QLabel(); self.background_preview.setAlignment(Qt.AlignmentFlag.AlignCenter); self.background_preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.background_preview.setFixedHeight(120); wl.addWidget(self.background_preview)
+        wl.addWidget(self.background_choice); self.background_preview=QLabel(); self.background_preview.setObjectName('wallpaperPreview'); self.background_preview.setAlignment(Qt.AlignmentFlag.AlignCenter); self.background_preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.background_preview.setFixedHeight(120); wl.addWidget(self.background_preview)
         self.background_path=label('','muted'); self.background_path.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); wl.addWidget(self.background_path)
         self.background_missing=label(t('Image unavailable. Showing the classic logo.'),'muted'); wl.addWidget(self.background_missing)
         wl.addWidget(button(t('Choose background image'),lambda:self.choose_background('image')))
@@ -1153,6 +1160,23 @@ class Window(QMainWindow):
         
         
         '''
+        # Final shared visual tokens: no extra layout height in the media workspace.
+        stylesheet+=f'''
+        QPushButton {{border-radius:7px;}}
+        QPushButton#primary:!disabled,QPushButton#duration,QPushButton#durationMenu {{border-radius:7px;}}
+        QPushButton#nav {{border-radius:7px;}}
+        QPushButton#quiet:disabled {{color:#74747e;}}
+        QFrame#panel,QFrame#collectionStrip {{border-radius:8px;}}
+        QLabel#wallpaperPreview {{background:{bg};border:1px solid {border};border-radius:8px;}}
+        QLabel#footerMessage {{color:#a6a6b2;font-size:12px;}}
+        QListWidget#settingsNavigation {{background:{panelbg};border:1px solid {border};border-radius:8px;}}
+        QListWidget#settingsNavigation::item {{border-left:2px solid transparent;border-radius:5px;}}
+        QListWidget#settingsNavigation::item:hover {{background:{bg};}}
+        QListWidget#settingsNavigation::item:selected {{background:{border};border-left:2px solid {accent};color:#f4f4f7;}}
+        QLineEdit,QComboBox,QAbstractSpinBox {{border-radius:7px;}}
+        QProgressBar,QProgressBar::chunk {{border-radius:3px;}}
+        QMenu {{border-radius:6px;}}
+        '''
         scale=self.prefs['text_scale']/100
         stylesheet=re.sub(r'font-size:(\d+)px',lambda m:f'font-size:{round(int(m[1])*scale)}px',stylesheet)
         if self.prefs['high_contrast']:
@@ -1243,7 +1267,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.7.1 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.7.2 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1306,7 +1330,8 @@ class Window(QMainWindow):
     def paint_status(self):
         if not hasattr(self,'start_btn'): return
         title={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]; self.hero_status.setText(title)
-        self.state.setText({True:t('Replay active'),False:t('Standby'),None:t('Unavailable')}[self.active]); self.state.setStyleSheet('color:'+('#73d9aa' if self.active else '#a6a6b2')); self.state_dot.setStyleSheet('border-radius:4px;background:'+('#73d9aa' if self.active else '#777780')+';')
+        state_color='#73d9aa' if self.active is True else '#e1b876' if self.active is None or self.recorder_interrupted else '#a6a6b2'
+        self.state.setText(t('Replay interrupted') if self.recorder_interrupted and self.active is False else {True:t('Replay active'),False:t('Standby'),None:t('Unavailable')}[self.active]); self.state.setStyleSheet('color:'+state_color+';'); self.state_dot.setStyleSheet('border-radius:4px;background:'+state_color+';')
         idle=self.pending is None; valid=getattr(self,'config_valid',True)
         self.stop_btn.setEnabled(idle and self.active is True)
         idle=idle and valid
@@ -1536,7 +1561,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 1.7.1 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 1.7.2 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -1585,4 +1610,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.1'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.2'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())

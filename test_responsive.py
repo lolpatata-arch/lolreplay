@@ -105,6 +105,10 @@ for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
         assert w.settings_stack.count()==11
+        assert w.settings_list.objectName()=='settingsNavigation'
+        assert w.background_preview.objectName()=='wallpaperPreview'
+        assert w.background_btn.property('lrIcon')=='image'
+        assert not w.background_btn.icon().isNull()
         assert w.background_choice.count()==8
         for mode in ui.backgrounds.STYLES:
             w.save_background(mode); assert not w.art.selected_art().isNull(), mode
