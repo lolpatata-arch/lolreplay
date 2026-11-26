@@ -127,6 +127,12 @@ for locale in LANGUAGES:
         if w.snapshot: assert w.recent.item(0).data(ui.Qt.ItemDataRole.UserRole)==w.snapshot[0][0]
         assert set(w.key_fields)==set(LABELS), (set(w.key_fields),set(LABELS))
         assert set(w.pref_controls)==set(OPTIONS), (set(w.pref_controls),set(OPTIONS))
+        for style in ('shell','glass','minimal','classic'):
+            w.set_preference('visual_style',style); app.processEvents(); assert w.prefs['visual_style']==style
+        w.set_preference('visual_style','shell')
+        w.set_preference('icon_navigation',True); assert all(not b.text() for b in w.nav)
+        w.set_preference('icon_navigation',False)
+        assert {'Obsidian','Arctic','Ember','Rose Quartz'}.issubset(ui.THEMES)
         w.prefs['thumbnails']=False
         if w.list.count():
             w.navigate(1); w.list.setCurrentRow(0); app.processEvents()
