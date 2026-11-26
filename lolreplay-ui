@@ -127,7 +127,7 @@ class Artwork(QWidget):
         if mode=='last_clip': return self.pix
         if mode=='image': return self.custom_pix
         if mode in backgrounds.STYLES:
-            if mode not in self.wallpapers: self.wallpapers[mode]=backgrounds.preset(mode,self.window.logo)
+            if mode not in self.wallpapers: self.wallpapers={mode:backgrounds.preset(mode,self.window.logo)}
             return self.wallpapers[mode]
         return None
     def mouseReleaseEvent(self,event):
@@ -301,6 +301,7 @@ class Window(QMainWindow):
             path,mtime,size=key; self.latest_title.setText(Path(path).stem); self.latest_meta.setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm')+f'  ·  {size/1024**2:.1f} MB  ·  '+t('Click preview to watch')); self.art.setMaximumHeight(16777215); self.art.set_art(self.thumbs.get(key))
         else:
             self.latest_title.setText(t('No recordings yet')); self.latest_meta.setText(self.hotkey_text('Start replay, then press F8 to save your first clip.')); self.art.setMaximumHeight(16777215); self.art.set_art(None)
+        if self.replay_background['mode']=='last_clip': self.sync_background_controls()
 
     def build_library(self):
         # Keep native video outside any scroll area, as in the editor.
@@ -1438,10 +1439,10 @@ class Window(QMainWindow):
         if key not in (self.snapshot or []) or not (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and key==self.snapshot[0])): return
         self.thumbs[key]=pix
         if len(self.thumbs)>256: self.thumbs.pop(next(iter(self.thumbs)))
+        if not self.prefs['thumbnails']:
+            self.update_latest(); return
         self.editor.update_thumbnail(key[0],pix)
-        if self.snapshot and key==self.snapshot[0]:
-            self.update_latest()
-            if self.replay_background['mode']=='last_clip': self.sync_background_controls()
+        if self.snapshot and key==self.snapshot[0]: self.update_latest()
         for view in (self.list,self.recent):
             for i in range(view.count()):
                 it=view.item(i)

@@ -108,6 +108,12 @@ for locale in LANGUAGES:
         assert w.background_choice.count()==8
         for mode in ui.backgrounds.STYLES:
             w.save_background(mode); assert not w.art.selected_art().isNull(), mode
+        custom_path=ui.HOME/'test-background.png'; custom=ui.QPixmap(640,360); custom.fill(ui.QColor('#ba1234')); assert custom.save(str(custom_path),'PNG')
+        loaded=ui.backgrounds.load_image(str(custom_path)); assert not loaded.isNull()
+        w.save_background('image',str(custom_path),loaded); assert not w.art.selected_art().isNull()
+        assert ui.read_json(ui.UI_CONFIG)['replay_background']=={'mode':'image','path':str(custom_path)}
+        custom_path.unlink(); w.save_background('image',str(custom_path)); assert w.art.selected_art().isNull()
+        w.save_background('last_clip'); assert w.replay_background['mode']=='last_clip'
         w.save_background('logo'); assert w.art.selected_art() is None
         assert set(w.key_fields)==set(LABELS), (set(w.key_fields),set(LABELS))
         assert set(w.pref_controls)==set(OPTIONS), (set(w.pref_controls),set(OPTIONS))
