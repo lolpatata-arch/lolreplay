@@ -34,6 +34,8 @@ def icon(name, color='#c5c5cc', active=None):
         elif name=='music': path((7,14),(7,5),(16,3),(16,12)); circle(4.7,14,2.3); circle(13.7,12,2.3)
         elif name=='trash': path((4,6),(16,6)); path((6,6),(7,17),(13,17),(14,6)); path((8,6),(8,3),(12,3),(12,6)); path((9,9),(9,14)); path((11,9),(11,14))
         elif name=='rename': path((4,13),(13,4),(16,7),(7,16),(4,16),(4,13)); path((11,6),(14,9))
+        elif name=='image':
+            rect(3,3,14,14); circle(7,7,1.5); path((4,14),(9,10),(12,13),(14,11),(16,13))
         elif name=='external': path((10,3),(17,3),(17,10)); path((17,3),(9,11)); path((8,5),(3,5),(3,17),(15,17),(15,12))
         else: circle(10,10,5)
         p.end(); pix.setDevicePixelRatio(2); return pix

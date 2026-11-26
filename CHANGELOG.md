@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.2 — Interface polish
+
+- Refine clip tiles with rounded borders, subtle hover treatment, a clearer selected state and visible keyboard focus.
+- Harmonize control corners, settings navigation, wallpaper preview and footer styling across themes.
+- Give the wallpaper action a dedicated original icon; distinguish unavailable/interrupted recorder states from standby using text and color.
+- Keep recording, exports, storage, preferences and layout breakpoints unchanged. No new dependencies or animation.
+- Maintainer reports the full automated suite passing on Arch Linux. Visual and integrated upgrade smoke tests remain pending.
+
 ## 1.7.1 — Replay backgrounds
 
 - Classic logo plus five static logo-based wallpapers: Crimson Glow, AMOLED Minimal, Midnight Orbit, Cyber Grid and Crimson Horizon.
