@@ -2896,3 +2896,707 @@ _update_rows=[
 ('Downloading and installing…','Descargando e instalando…','Téléchargement et installation…','Download und Installation…','Загрузка и установка…','Pobieranie i instalowanie…','ダウンロードとインストール中…','正在下载并安装…','Download e installazione…'),
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _update_rows})
+
+# Smart library
+_library_rows = [
+  [
+    "Favorites only",
+    "Solo favoritos",
+    "Favoris uniquement",
+    "Nur Favoriten",
+    "Только избранное",
+    "Tylko ulubione",
+    "お気に入りのみ",
+    "仅收藏",
+    "Solo preferiti"
+  ],
+  [
+    "All games",
+    "Todos los juegos",
+    "Tous les jeux",
+    "Alle Spiele",
+    "Все игры",
+    "Wszystkie gry",
+    "すべてのゲーム",
+    "所有游戏",
+    "Tutti i giochi"
+  ],
+  [
+    "Filter by game",
+    "Filtrar por juego",
+    "Filtrer par jeu",
+    "Nach Spiel filtern",
+    "Фильтр по игре",
+    "Filtruj według gry",
+    "ゲームで絞り込む",
+    "按游戏筛选",
+    "Filtra per gioco"
+  ],
+  [
+    "Search names, games, tags…",
+    "Buscar nombres, juegos, etiquetas…",
+    "Rechercher noms, jeux, tags…",
+    "Namen, Spiele, Tags suchen…",
+    "Поиск названий, игр, тегов…",
+    "Szukaj nazw, gier, tagów…",
+    "名前、ゲーム、タグを検索…",
+    "搜索名称、游戏、标签…",
+    "Cerca nomi, giochi, tag…"
+  ],
+  [
+    "Add favorite",
+    "Añadir a favoritos",
+    "Ajouter aux favoris",
+    "Zu Favoriten hinzufügen",
+    "Добавить в избранное",
+    "Dodaj do ulubionych",
+    "お気に入りに追加",
+    "添加收藏",
+    "Aggiungi ai preferiti"
+  ],
+  [
+    "Remove favorite",
+    "Quitar de favoritos",
+    "Retirer des favoris",
+    "Aus Favoriten entfernen",
+    "Удалить из избранного",
+    "Usuń z ulubionych",
+    "お気に入りから削除",
+    "取消收藏",
+    "Rimuovi dai preferiti"
+  ],
+  [
+    "Edit game and tags",
+    "Editar juego y etiquetas",
+    "Modifier le jeu et les tags",
+    "Spiel und Tags bearbeiten",
+    "Изменить игру и теги",
+    "Edytuj grę i tagi",
+    "ゲームとタグを編集",
+    "编辑游戏和标签",
+    "Modifica gioco e tag"
+  ],
+  [
+    "Game name:",
+    "Nombre del juego:",
+    "Nom du jeu :",
+    "Spielname:",
+    "Название игры:",
+    "Nazwa gry:",
+    "ゲーム名：",
+    "游戏名称：",
+    "Nome del gioco:"
+  ],
+  [
+    "Tags (comma separated):",
+    "Etiquetas (separadas por comas):",
+    "Tags (séparés par des virgules) :",
+    "Tags (durch Kommas getrennt):",
+    "Теги (через запятую):",
+    "Tagi (oddzielone przecinkami):",
+    "タグ（カンマ区切り）：",
+    "标签（逗号分隔）：",
+    "Tag (separati da virgole):"
+  ],
+  [
+    "Library metadata unavailable",
+    "Metadatos de biblioteca no disponibles",
+    "Métadonnées indisponibles",
+    "Bibliotheksmetadaten nicht verfügbar",
+    "Метаданные недоступны",
+    "Metadane biblioteki niedostępne",
+    "ライブラリのメタデータを利用できません",
+    "库元数据不可用",
+    "Metadati della libreria non disponibili"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _library_rows})
+
+_duration_rows = [
+  [
+    "Filter by date",
+    "Filtrar por fecha",
+    "Filtrer par date",
+    "Nach Datum filtern",
+    "Фильтр по дате",
+    "Filtruj według daty",
+    "日付で絞り込む",
+    "按日期筛选",
+    "Filtra per data"
+  ],
+  [
+    "Any date",
+    "Cualquier fecha",
+    "Toutes les dates",
+    "Beliebiges Datum",
+    "Любая дата",
+    "Dowolna data",
+    "すべての日付",
+    "不限日期",
+    "Qualsiasi data"
+  ],
+  [
+    "Last 24 hours",
+    "Últimas 24 horas",
+    "Dernières 24 heures",
+    "Letzte 24 Stunden",
+    "Последние 24 часа",
+    "Ostatnie 24 godziny",
+    "過去24時間",
+    "过去24小时",
+    "Ultime 24 ore"
+  ],
+  [
+    "Last 7 days",
+    "Últimos 7 días",
+    "7 derniers jours",
+    "Letzte 7 Tage",
+    "Последние 7 дней",
+    "Ostatnie 7 dni",
+    "過去7日間",
+    "过去7天",
+    "Ultimi 7 giorni"
+  ],
+  [
+    "Last 30 days",
+    "Últimos 30 días",
+    "30 derniers jours",
+    "Letzte 30 Tage",
+    "Последние 30 дней",
+    "Ostatnie 30 dni",
+    "過去30日間",
+    "过去30天",
+    "Ultimi 30 giorni"
+  ],
+  [
+    "Filter by duration",
+    "Filtrar por duración",
+    "Filtrer par durée",
+    "Nach Dauer filtern",
+    "Фильтр по длительности",
+    "Filtruj według czasu trwania",
+    "長さで絞り込む",
+    "按时长筛选",
+    "Filtra per durata"
+  ],
+  [
+    "Any duration",
+    "Cualquier duración",
+    "Toutes les durées",
+    "Beliebige Dauer",
+    "Любая длительность",
+    "Dowolny czas trwania",
+    "すべての長さ",
+    "不限时长",
+    "Qualsiasi durata"
+  ],
+  [
+    "Up to 30 sec",
+    "Hasta 30 s",
+    "Jusqu’à 30 s",
+    "Bis 30 s",
+    "До 30 с",
+    "Do 30 s",
+    "30秒以下",
+    "不超过30秒",
+    "Fino a 30 s"
+  ],
+  [
+    "30 sec to 2 min",
+    "Más de 30 s a 2 min",
+    "Plus de 30 s à 2 min",
+    "Über 30 s bis 2 min",
+    "От 30 с до 2 мин",
+    "Ponad 30 s do 2 min",
+    "30秒超〜2分",
+    "超过30秒至2分钟",
+    "Oltre 30 s fino a 2 min"
+  ],
+  [
+    "Over 2 min",
+    "Más de 2 min",
+    "Plus de 2 min",
+    "Über 2 min",
+    "Более 2 мин",
+    "Ponad 2 min",
+    "2分超",
+    "超过2分钟",
+    "Oltre 2 min"
+  ],
+  [
+    "Indexing durations…",
+    "Analizando duraciones…",
+    "Analyse des durées…",
+    "Dauern werden ermittelt…",
+    "Анализ длительности…",
+    "Analizowanie czasu trwania…",
+    "長さを解析中…",
+    "正在分析时长…",
+    "Analisi delle durate…"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _duration_rows})
+
+_multitrack_rows = [
+  [
+    "Audio track mode",
+    "Modo de pistas de audio",
+    "Mode des pistes audio",
+    "Audiomodus",
+    "Режим аудиодорожек",
+    "Tryb ścieżek audio",
+    "音声トラックモード",
+    "音轨模式",
+    "Modalità tracce audio"
+  ],
+  [
+    "Mixed audio",
+    "Audio mezclado",
+    "Audio mixé",
+    "Gemischtes Audio",
+    "Смешанный звук",
+    "Dźwięk mieszany",
+    "ミックス音声",
+    "混合音频",
+    "Audio miscelato"
+  ],
+  [
+    "Separate system and microphone",
+    "Separar sistema y micrófono",
+    "Séparer système et microphone",
+    "System und Mikrofon trennen",
+    "Раздельно система и микрофон",
+    "Osobno system i mikrofon",
+    "システム音とマイクを分離",
+    "分离系统与麦克风",
+    "Separa sistema e microfono"
+  ],
+  [
+    "Selected applications only",
+    "Solo aplicaciones seleccionadas",
+    "Applications sélectionnées uniquement",
+    "Nur ausgewählte Anwendungen",
+    "Только выбранные приложения",
+    "Tylko wybrane aplikacje",
+    "選択したアプリのみ",
+    "仅选定应用",
+    "Solo applicazioni selezionate"
+  ],
+  [
+    "Application names separated by commas (only these apps are recorded):",
+    "Nombres de aplicaciones separados por comas (solo se graban estas aplicaciones):",
+    "Noms des applications séparés par des virgules (seules ces applications sont enregistrées) :",
+    "Anwendungsnamen durch Kommas getrennt (nur diese werden aufgenommen):",
+    "Имена приложений через запятую (записываются только они):",
+    "Nazwy aplikacji oddzielone przecinkami (tylko one są nagrywane):",
+    "アプリ名をカンマ区切りで入力（これらのみ録音）：",
+    "应用名称以逗号分隔（仅录制这些应用）：",
+    "Nomi delle app separati da virgole (si registrano solo queste):"
+  ],
+  [
+    "Independent audio tracks",
+    "Pistas de audio independientes",
+    "Pistes audio indépendantes",
+    "Unabhängige Audiospuren",
+    "Независимые аудиодорожки",
+    "Niezależne ścieżki audio",
+    "独立した音声トラック",
+    "独立音轨",
+    "Tracce audio indipendenti"
+  ],
+  [
+    "Track volumes apply to export. Preview selects one original track.",
+    "Los volúmenes se aplican al exportar. La vista previa reproduce una pista original.",
+    "Les volumes s’appliquent à l’export. L’aperçu lit une piste originale.",
+    "Spurlautstärken gelten beim Export. Vorschau spielt eine Originalspur.",
+    "Громкость применяется при экспорте. Предпросмотр одной исходной дорожки.",
+    "Głośność dotyczy eksportu. Podgląd odtwarza jedną oryginalną ścieżkę.",
+    "音量は書き出し時に適用。プレビューは元の1トラックを再生。",
+    "音量在导出时生效。预览播放一条原始音轨。",
+    "I volumi si applicano all’esportazione. L’anteprima riproduce una traccia originale."
+  ],
+  [
+    "Audio track {0}",
+    "Pista de audio {0}",
+    "Piste audio {0}",
+    "Audiospur {0}",
+    "Аудиодорожка {0}",
+    "Ścieżka audio {0}",
+    "音声トラック {0}",
+    "音轨 {0}",
+    "Traccia audio {0}"
+  ],
+  [
+    "Listen to track",
+    "Escuchar pista",
+    "Écouter la piste",
+    "Spur anhören",
+    "Прослушать дорожку",
+    "Odsłuchaj ścieżkę",
+    "トラックを聴く",
+    "试听音轨",
+    "Ascolta traccia"
+  ],
+  [
+    "Save mixed copy",
+    "Guardar copia mezclada",
+    "Enregistrer une copie mixée",
+    "Gemischte Kopie speichern",
+    "Сохранить смешанную копию",
+    "Zapisz kopię miksu",
+    "ミックスコピーを保存",
+    "保存混合副本",
+    "Salva copia miscelata"
+  ],
+  [
+    "Export a mixed copy? The original independent tracks will be preserved.",
+    "¿Exportar una copia mezclada? Se conservarán las pistas independientes originales.",
+    "Exporter une copie mixée ? Les pistes originales seront conservées.",
+    "Gemischte Kopie exportieren? Originalspuren bleiben erhalten.",
+    "Экспортировать смешанную копию? Исходные дорожки сохранятся.",
+    "Wyeksportować miks? Oryginalne ścieżki zostaną zachowane.",
+    "ミックスコピーを書き出しますか？元のトラックは保持されます。",
+    "导出混合副本？原始独立音轨将保留。",
+    "Esportare una copia miscelata? Le tracce originali saranno conservate."
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _multitrack_rows})
+
+_auto_audio_rows = [
+  [
+    "Automatic application tracks",
+    "Pistas de aplicaciones automáticas",
+    "Pistes automatiques des applications",
+    "Automatische Anwendungsspuren",
+    "Автоматические дорожки приложений",
+    "Automatyczne ścieżki aplikacji",
+    "アプリの自動音声トラック",
+    "自动应用音轨",
+    "Tracce automatiche delle app"
+  ],
+  [
+    "Applications are detected when replay starts. New applications are recorded together until the next restart.",
+    "Las aplicaciones se detectan al iniciar el replay. Las nuevas se graban juntas hasta el siguiente reinicio.",
+    "Les applications sont détectées au démarrage du replay. Les nouvelles sont enregistrées ensemble jusqu’au prochain redémarrage.",
+    "Anwendungen werden beim Replay-Start erkannt. Neue Anwendungen werden bis zum nächsten Neustart gemeinsam aufgenommen.",
+    "Приложения определяются при запуске повтора. Новые приложения записываются вместе до перезапуска.",
+    "Aplikacje są wykrywane przy uruchomieniu powtórki. Nowe aplikacje są nagrywane razem do ponownego uruchomienia.",
+    "リプレイ開始時にアプリを検出します。新しいアプリは次の再起動までまとめて録音されます。",
+    "回放启动时检测应用。新应用将在下次重启前合并录制。",
+    "Le app vengono rilevate all’avvio del replay. Le nuove app vengono registrate insieme fino al riavvio."
+  ],
+  [
+    "One recorded audio track. Enable automatic application tracks in Audio routing for new clips.",
+    "Una pista de audio grabada. Activa las pistas de aplicaciones automáticas en Ajustes de audio para los clips nuevos.",
+    "Une piste audio enregistrée. Activez les pistes automatiques dans les paramètres audio pour les nouveaux clips.",
+    "Eine aufgezeichnete Audiospur. Aktiviere automatische Anwendungsspuren in den Audioeinstellungen für neue Clips.",
+    "Одна записанная дорожка. Включите автоматические дорожки в настройках звука для новых клипов.",
+    "Jedna nagrana ścieżka. Włącz automatyczne ścieżki w ustawieniach audio dla nowych klipów.",
+    "録音された音声は1トラックです。新しいクリップには音声設定で自動トラックを有効にしてください。",
+    "仅有一条录制音轨。请在音频设置中为新片段启用自动应用音轨。",
+    "Una traccia audio registrata. Attiva le tracce automatiche nelle impostazioni audio per le nuove clip."
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _auto_audio_rows})
+
+_editor15_rows = [
+  [
+    "Timeline zoom",
+    "Zoom de la línea de tiempo",
+    "Zoom de la timeline",
+    "Zeitleisten-Zoom",
+    "Масштаб шкалы",
+    "Powiększenie osi czasu",
+    "タイムラインのズーム",
+    "时间线缩放",
+    "Zoom timeline"
+  ],
+  [
+    "Timeline scroll",
+    "Desplazar línea de tiempo",
+    "Défilement de la timeline",
+    "Zeitleiste verschieben",
+    "Прокрутка шкалы",
+    "Przewijanie osi czasu",
+    "タイムラインのスクロール",
+    "时间线滚动",
+    "Scorrimento timeline"
+  ],
+  [
+    "Loop selection",
+    "Repetir selección",
+    "Lire la sélection en boucle",
+    "Auswahl wiederholen",
+    "Повтор выделения",
+    "Zapętl zaznaczenie",
+    "選択範囲をループ",
+    "循环播放选区",
+    "Ripeti selezione"
+  ],
+  [
+    "Export format",
+    "Formato de exportación",
+    "Format d’exportation",
+    "Exportformat",
+    "Формат экспорта",
+    "Format eksportu",
+    "書き出し形式",
+    "导出格式",
+    "Formato esportazione"
+  ],
+  [
+    "Original aspect",
+    "Proporción original",
+    "Format d’origine",
+    "Originalseitenverhältnis",
+    "Исходное соотношение",
+    "Oryginalne proporcje",
+    "元のアスペクト比",
+    "原始宽高比",
+    "Proporzioni originali"
+  ],
+  [
+    "Vertical 9:16",
+    "Vertical 9:16",
+    "Vertical 9:16",
+    "Vertikal 9:16",
+    "Вертикальный 9:16",
+    "Pionowy 9:16",
+    "縦長 9:16",
+    "竖屏 9:16",
+    "Verticale 9:16"
+  ],
+  [
+    "Square 1:1",
+    "Cuadrado 1:1",
+    "Carré 1:1",
+    "Quadratisch 1:1",
+    "Квадрат 1:1",
+    "Kwadrat 1:1",
+    "正方形 1:1",
+    "方形 1:1",
+    "Quadrato 1:1"
+  ],
+  [
+    "Export speed",
+    "Velocidad de exportación",
+    "Vitesse d’exportation",
+    "Exportgeschwindigkeit",
+    "Скорость экспорта",
+    "Prędkość eksportu",
+    "書き出し速度",
+    "导出速度",
+    "Velocità esportazione"
+  ],
+  [
+    "Export quality",
+    "Calidad de exportación",
+    "Qualité d’exportation",
+    "Exportqualität",
+    "Качество экспорта",
+    "Jakość eksportu",
+    "書き出し品質",
+    "导出质量",
+    "Qualità esportazione"
+  ],
+  [
+    "Small file",
+    "Archivo ligero",
+    "Petit fichier",
+    "Kleine Datei",
+    "Малый размер",
+    "Mały plik",
+    "小さいファイル",
+    "小文件",
+    "File piccolo"
+  ],
+  [
+    "Balanced quality",
+    "Calidad equilibrada",
+    "Qualité équilibrée",
+    "Ausgewogene Qualität",
+    "Сбалансированное качество",
+    "Zrównoważona jakość",
+    "バランス品質",
+    "均衡质量",
+    "Qualità bilanciata"
+  ],
+  [
+    "High quality",
+    "Alta calidad",
+    "Haute qualité",
+    "Hohe Qualität",
+    "Высокое качество",
+    "Wysoka jakość",
+    "高品質",
+    "高质量",
+    "Alta qualità"
+  ],
+  [
+    "Output duration: {0}",
+    "Duración final: {0}",
+    "Durée finale : {0}",
+    "Ausgabedauer: {0}",
+    "Итоговая длительность: {0}",
+    "Czas wyjściowy: {0}",
+    "出力時間：{0}",
+    "输出时长：{0}",
+    "Durata finale: {0}"
+  ],
+  [
+    "Replace original",
+    "Sustituir original",
+    "Remplacer l’original",
+    "Original ersetzen",
+    "Заменить оригинал",
+    "Zastąp oryginał",
+    "元のファイルを置換",
+    "替换原文件",
+    "Sostituisci originale"
+  ],
+  [
+    "Exports a new copy by default. Multitrack originals are always kept.",
+    "Exporta una copia nueva por defecto. Los originales multipista siempre se conservan.",
+    "Exporte une nouvelle copie par défaut. Les originaux multipistes sont toujours conservés.",
+    "Standardmäßig neue Kopie. Mehrspur-Originale bleiben immer erhalten.",
+    "По умолчанию новая копия. Многодорожечные оригиналы сохраняются.",
+    "Domyślnie nowa kopia. Wielościeżkowe oryginały są zachowywane.",
+    "既定で新規コピーを書き出します。複数トラックの元ファイルは保持されます。",
+    "默认导出新副本。始终保留多音轨原文件。",
+    "Esporta una nuova copia per impostazione predefinita. Gli originali multitraccia vengono conservati."
+  ],
+  [
+    "Export clip",
+    "Exportar clip",
+    "Exporter le clip",
+    "Clip exportieren",
+    "Экспорт клипа",
+    "Eksportuj klip",
+    "クリップを書き出す",
+    "导出片段",
+    "Esporta clip"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _editor15_rows})
+
+_game16_rows = [
+  [
+    "Edit tags",
+    "Editar etiquetas",
+    "Modifier les tags",
+    "Tags bearbeiten",
+    "Изменить теги",
+    "Edytuj tagi",
+    "タグを編集",
+    "编辑标签",
+    "Modifica tag"
+  ],
+  [
+    "Game not detected",
+    "Juego no detectado",
+    "Jeu non détecté",
+    "Spiel nicht erkannt",
+    "Игра не определена",
+    "Nie wykryto gry",
+    "ゲーム未検出",
+    "未检测到游戏",
+    "Gioco non rilevato"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _game16_rows})
+
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Detected game: {0}","Juego detectado: {0}","Jeu détecté : {0}","Erkanntes Spiel: {0}","Обнаруженная игра: {0}","Wykryta gra: {0}","検出したゲーム：{0}","检测到游戏：{0}","Gioco rilevato: {0}"]]})
+
+_polish17_rows = [
+  [
+    "Close to system tray",
+    "Cerrar en la bandeja del sistema",
+    "Fermer dans la zone de notification",
+    "In den Infobereich schließen",
+    "Закрывать в системный трей",
+    "Zamknij do zasobnika",
+    "閉じるとトレイへ",
+    "关闭到系统托盘",
+    "Chiudi nell’area di notifica"
+  ],
+  [
+    "Open lolreplay",
+    "Abrir lolreplay",
+    "Ouvrir lolreplay",
+    "lolreplay öffnen",
+    "Открыть lolreplay",
+    "Otwórz lolreplay",
+    "lolreplayを開く",
+    "打开 lolreplay",
+    "Apri lolreplay"
+  ],
+  [
+    "Quit interface",
+    "Cerrar interfaz",
+    "Quitter l’interface",
+    "Oberfläche beenden",
+    "Закрыть интерфейс",
+    "Zamknij interfejs",
+    "インターフェースを終了",
+    "退出界面",
+    "Chiudi interfaccia"
+  ],
+  [
+    "Replay ended unexpectedly. Restart to begin a new buffer.",
+    "El replay terminó inesperadamente. Reinicia para iniciar un nuevo búfer.",
+    "Replay interrompu. Redémarrez pour un nouveau tampon.",
+    "Replay unerwartet beendet. Neu starten für einen neuen Puffer.",
+    "Повтор неожиданно завершился. Перезапустите для нового буфера.",
+    "Replay zakończył się niespodziewanie. Uruchom ponownie, aby rozpocząć nowy bufor.",
+    "リプレイが予期せず終了しました。再起動して新しいバッファーを開始。",
+    "回放意外结束。重启以开始新缓冲区。",
+    "Replay terminato inaspettatamente. Riavvia per un nuovo buffer."
+  ],
+  [
+    "Replay interrupted",
+    "Replay interrumpido",
+    "Replay interrompu",
+    "Replay unterbrochen",
+    "Повтор прерван",
+    "Replay przerwany",
+    "リプレイ中断",
+    "回放中断",
+    "Replay interrotto"
+  ],
+  [
+    "Refresh diagnostics",
+    "Actualizar diagnóstico",
+    "Actualiser le diagnostic",
+    "Diagnose aktualisieren",
+    "Обновить диагностику",
+    "Odśwież diagnostykę",
+    "診断を更新",
+    "刷新诊断",
+    "Aggiorna diagnostica"
+  ],
+  [
+    "Interface RAM: {0} MiB",
+    "RAM de la interfaz: {0} MiB",
+    "RAM de l’interface : {0} MiB",
+    "Oberflächen-RAM: {0} MiB",
+    "ОЗУ интерфейса: {0} МиБ",
+    "RAM interfejsu: {0} MiB",
+    "画面RAM：{0} MiB",
+    "界面内存：{0} MiB",
+    "RAM interfaccia: {0} MiB"
+  ],
+  [
+    "Cached thumbnails: {0}",
+    "Miniaturas en caché: {0}",
+    "Miniatures en cache : {0}",
+    "Zwischengespeicherte Miniaturen: {0}",
+    "Миниатюр в кэше: {0}",
+    "Miniatury w pamięci: {0}",
+    "キャッシュ済みサムネイル：{0}",
+    "缓存缩略图：{0}",
+    "Miniature in cache: {0}"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _polish17_rows})
+
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Filters","Filtros","Filtres","Filter","Фильтры","Filtry","フィルター","筛选","Filtri"],["Reset filters","Restablecer filtros","Réinitialiser les filtres","Filter zurücksetzen","Сбросить фильтры","Resetuj filtry","フィルターをリセット","重置筛选","Reimposta filtri"]] if row[0] not in CATALOG})

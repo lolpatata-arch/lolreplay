@@ -16,6 +16,7 @@ OPTIONS = {
     'thumbnails': (True, False),
     'refresh_ms': (2500, 5000, 10000),
     'background_refresh': (False, True),
+    'close_to_tray': (False, True),
 }
 DEFAULTS = {key: values[0] for key, values in OPTIONS.items()}
 

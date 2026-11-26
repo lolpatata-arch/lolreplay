@@ -30,6 +30,62 @@ def output_device(name):
     if name not in dict(outputs()): raise RuntimeError('Selected output unavailable: '+name)
     return gsr_device(name+'.monitor')
 
+def app_names(value):
+    if not isinstance(value,list) or len(value)>8:
+        raise ValueError('Select up to eight application names')
+    seen=set()
+    for name in value:
+        if not isinstance(name,str) or not name or name != name.strip() or len(name)>128 or any(c in name for c in '|;\x00\r\n,') or name.casefold() in seen:
+            raise ValueError('Invalid or duplicate application name')
+        seen.add(name.casefold())
+    return value
+
+
+def detected_apps():
+    """Use the recorder's own names, never guess from process names."""
+    names=[]
+    for line in cmd('gpu-screen-recorder','--list-application-audio').splitlines():
+        name=line.strip()
+        if not name or name.casefold().startswith('lolreplay_'):
+            continue
+        if any(x.casefold()==name.casefold() for x in names):
+            continue
+        try: app_names([name])
+        except ValueError: continue
+        names.append(name)
+    # Prioritize commonly used voice and music apps; remaining sources are
+    # still captured in the catch-all track, even if the track budget is full.
+    priority=('discord','webrtc','spotify','vesktop','teamspeak')
+    names.sort(key=lambda name:(not any(p in name.casefold() for p in priority),name.casefold()))
+    return names[:8]
+
+
+def track_args(mode, output, mic=None, apps=()):
+    if mode == 'mixed':
+        return ['-a',output+('|' + mic if mic else '')]
+    if mode == 'separate':
+        sources=[output]
+    elif mode == 'auto':
+        names=app_names(list(apps))
+        if names:
+            # All exclusions in a single inverse application track.
+            sources=['app:'+name for name in names]
+            sources.append('|'.join('app-inverse:'+name for name in names))
+        else:
+            if not output: raise ValueError('No default output available')
+            sources=[output]
+    elif mode == 'apps':
+        names=app_names(list(apps))
+        if not names:
+            raise ValueError('Select at least one application for application-only recording')
+        sources=['app:'+name for name in names]
+    else:
+        raise ValueError('Invalid audio mode')
+    if mic:
+        sources.append(mic)
+    return [part for source in sources for part in ('-a',source)]
+
+
 def module_rows():
     # The tab-separated interface provides the numeric ID even when JSON omits index.
     rows=[]

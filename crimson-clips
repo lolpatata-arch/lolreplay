@@ -12,6 +12,9 @@ import lolreplay_performance as perf
 import lolreplay_audio as audio
 import lolreplay_compositor as compositor
 import lolreplay_storage as storage
+import lolreplay_games as games
+import lolreplay_library as library
+import sqlite3
 import datetime
 import json
 import os
@@ -33,6 +36,8 @@ DEFAULT = {
     "microphone": False,
     "microphone_source": "auto",  # Identificador de dispositivo de GSR o auto para pactl
     "audio_output": "auto",
+    "audio_mode": "mixed",
+    "audio_apps": [],
     "output_dir": str(Path.home() / "Videos" / "CrimsonClips"),
     "capture": "screen",
     "rate_control": "auto",
@@ -147,14 +152,21 @@ def start(cfg):
     target = compositor.capture(cfg)
     # Usar un identificador real: default_input puede cambiar de dispositivo al vuelo.
     audio.cleanup()
-    output_device = audio.output_device(cfg.get("audio_output", "auto"))
+    routing=cfg.get("audio_mode","mixed")
+    apps=cfg.get("audio_apps",[])
+    if routing=="auto":
+        try: apps=audio.detected_apps()
+        except (RuntimeError,OSError,subprocess.SubprocessError) as exc:
+            print("Application detection unavailable; using system audio:",exc,flush=True)
+            apps=[]
+        print("Independent application tracks: "+(", ".join(apps) if apps else "none; using system audio"),flush=True)
+    output_device=audio.output_device(cfg.get("audio_output","auto")) if routing not in ("apps","auto") or (routing=="auto" and not apps) else None
     # Prepare storage before creating the virtual audio device.
     capture_dir = storage.staging() if cfg.get("library_id") else out
     mic_device = audio.bridge(resolve_microphone(cfg)) if cfg["microphone"] else None
-    # Mix system audio with the isolated microphone monitor for ordinary playback.
-    audio_args = ["-a", output_device + ("|"+mic_device if mic_device else "")]
     p = None
     try:
+        audio_args = audio.track_args(routing,output_device,mic_device,apps)
         mode = cfg.get("rate_control", "auto")
         for rate in perf.rate_attempts(mode):
             args = [
@@ -187,6 +199,9 @@ def start(cfg):
                     raise RuntimeError(f"El grabador terminó (código {p.returncode}). Lee: {LOG}")
                 if is_running():
                     if mic_device: audio.watch(p.pid)
+                    if type(p.pid) is int:
+                        try: games.watch(p.pid)
+                        except (OSError,RuntimeError,subprocess.SubprocessError) as exc: print('Game detection unavailable:',exc,flush=True)
                     print(f"✅ Replay activo · {cfg['buffer_seconds']} s de búfer · {cfg['fps']} FPS · {rate.upper() if rate == 'cbr' else 'CQP'}")
                     print(f"📁 Clips en: {out}")
                     print(f"🎙️ Micro: {mic_device if mic_device else 'desactivado'}")
@@ -204,12 +219,19 @@ def start(cfg):
         raise
 
 
+def remember_game(path,game):
+    if not game: return
+    try: library.Library(library.default_path()).assign_game(path,game)
+    except (OSError,sqlite3.Error,ValueError) as exc: print("Game metadata unavailable:",exc,file=sys.stderr)
+
+
 def save(cfg, seconds):
     if not is_running():
         raise RuntimeError("El replay no está activo. Ejecuta: crimson-clips start")
     seconds = validate_duration(cfg, int(cfg["save_seconds"]) if seconds is None else seconds)
     # If the registered disk is absent, still save the replay to local recovery.
     if not cfg.get("library_id"): output_check(cfg)
+    game=games.recent_game(seconds)
     clip = ipc("save-replay", seconds, checked=True)
     if cfg.get("library_id"):
         source=Path(clip).resolve()
@@ -220,12 +242,15 @@ def save(cfg, seconds):
             if target.exists(): target=out/(source.stem+"-"+__import__("uuid").uuid4().hex[:8]+source.suffix)
             storage.publish(source,target,cfg["library_id"]); clip=str(target)
         except (OSError,ValueError,RuntimeError) as exc:
+            remember_game(source,game)
             alert("lolreplay: recovered locally",str(source))
             print(f"Disk unavailable or transfer failed: {exc}\nClip retained locally: {source}")
             return 0
     if not clip or not Path(clip).is_file() or Path(clip).stat().st_size<=0:
         raise RuntimeError('No se ha confirmado un archivo de vídeo válido. Revisa el log y la carpeta de clips.')
+    remember_game(Path(clip),game)
     print(f"🎬 Clip guardado: {clip}")
+    if game: print("🎮 Game:",game)
     alert("Crimson Clips", f"Clip de {seconds} segundos guardado")
     return 0
 
@@ -246,7 +271,7 @@ def stop():
 
 
 def doctor(cfg):
-    print("=== LOLREPLAY 1.2.0 / DIAGNÓSTICO ===")
+    print("=== LOLREPLAY 1.7.0 / DIAGNÓSTICO ===")
     print("Compositor:", compositor.detect())
     print("Capture:", compositor.capture(cfg))
     print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
@@ -326,6 +351,9 @@ def main():
     source.add_argument("device")
     output = sub.add_parser("audio-output", help="Select recorded playback device (or auto)")
     output.add_argument("device")
+    routing = sub.add_parser("audio-mode", help="Configure mixed, separate mic, or application-only tracks")
+    routing.add_argument("mode",choices=("mixed","separate","apps","auto"))
+    routing.add_argument("apps",nargs="*")
     directory = sub.add_parser("directory", help="Elegir carpeta existente para clips")
     directory.add_argument("path")
     args = parser.parse_args()
@@ -341,7 +369,7 @@ def main():
                 except BlockingIOError:
                     if time.monotonic()>=deadline: raise RuntimeError('Otra operación de lolreplay sigue en curso. Reintenta en unos segundos.')
                     time.sleep(.1)
-        if args.command in ("mic","mic-source","audio-output","directory","niri-capture","profile","buffer","rate-control") and is_running():
+        if args.command in ("mic","mic-source","audio-output","audio-mode","directory","niri-capture","profile","buffer","rate-control") and is_running():
             raise RuntimeError("Stop replay before changing capture, audio or storage (buffer will reset).")
         # Status and stop must work even if the settings file is damaged.
         if args.command == 'status':
@@ -397,6 +425,15 @@ def main():
             print("🎙️ Nuevo micrófono:", args.device)
             if is_running():
                 print("⚠️ Para aplicar: crimson-clips stop; crimson-clips start")
+            return 0
+        if args.command == "audio-mode":
+            names=audio.app_names(args.apps)
+            if args.mode=="apps" and not names: raise ValueError("Select at least one application")
+            if args.mode!="apps" and names: raise ValueError("Application names require apps mode")
+            cfg["audio_mode"]=args.mode
+            if args.mode=="apps": cfg["audio_apps"]=names
+            config_save(storage.validate_config(cfg))
+            print("Audio mode:",args.mode)
             return 0
         if args.command == "audio-output":
             audio.output_device(args.device)
