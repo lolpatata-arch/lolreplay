@@ -25,7 +25,8 @@ import lolreplay_compositor as compositor
 import lolreplay_performance as perf
 from lolreplay_icons import decorate, icon
 from lolreplay_update_ui import UpdatePanel
-from PySide6.QtCore import Qt, QProcess, QTimer, QSize, QUrl, QRect, QRectF, QEvent, QLocale, QTranslator, QLibraryInfo, QDateTime
+from PySide6.QtCore import Qt, QProcess, QTimer, QSize, QUrl, QRect, QRectF, QEvent, QLocale, QTranslator, QLibraryInfo, QDateTime, QLockFile
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices, QPainter, QColor, QPen, QFont, QPainterPath, QLinearGradient, QBrush, QPalette, QRadialGradient, QShortcut, QKeySequence
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QBoxLayout, QGridLayout, QFrame, QListWidget, QListWidgetItem,
@@ -1441,6 +1442,7 @@ class Window(QMainWindow):
         try: write_ui({**read_json(UI_CONFIG),'playback_volume':self.playback_volume,'library_sort':self.library_sort})
         except OSError: pass
         if not self.exiting and not self.update_panel.installed and self.prefs['close_to_tray'] and QSystemTrayIcon.isSystemTrayAvailable():
+            if self.player: self.player.pause()
             self.tray.show(); self.hide(); self.application_state_changed(QApplication.instance().applicationState()); event.ignore(); return
         self.closing=True; self.timer.stop(); self.health_timer.stop(); self.tray.hide()
         if self.player: self.player.stop()
@@ -1448,6 +1450,32 @@ class Window(QMainWindow):
             if p.state()!=QProcess.ProcessState.NotRunning: p.kill(); p.waitForFinished(1000)
         event.accept()
 
+def run_desktop():
+    app=QApplication.instance()
+    runtime=Path(os.environ.get('XDG_RUNTIME_DIR',f'/run/user/{os.getuid()}'))
+    if not runtime.is_dir():
+        window=Window(); window.show(); return app.exec()
+    socket_name=str(runtime/'lolreplay-ui.sock')
+    lock=QLockFile(str(runtime/'lolreplay-ui.lock')); lock.setStaleLockTime(0)
+    if not lock.tryLock(0):
+        client=QLocalSocket(); client.connectToServer(socket_name)
+        if client.waitForConnected(1000):
+            client.disconnectFromServer(); return 0
+        print('lolreplay interface already running or starting',file=sys.stderr); return 1
+    server=QLocalServer(); QLocalServer.removeServer(socket_name)
+    if not server.listen(socket_name):
+        lock.unlock(); return 1
+    window=Window()
+    def reopen():
+        while server.hasPendingConnections():
+            client=server.nextPendingConnection()
+            if client: client.disconnectFromServer(); client.deleteLater()
+        if not window.closing: window.restore_window()
+    server.newConnection.connect(reopen); window.show()
+    try: return app.exec()
+    finally: server.close(); lock.unlock()
+
+
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.0'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
