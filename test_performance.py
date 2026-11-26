@@ -77,6 +77,6 @@ class PerformanceTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertEqual(len(list(legacy.parent.glob('lolreplay.svg.bak-*'))),1)
             p=subprocess.run([sys.executable,str(home/'.local/bin/lolreplay'),'--version'],env=env,capture_output=True,text=True)
-            self.assertEqual(p.stdout.strip(),'lolreplay 1.1.0')
+            self.assertEqual(p.stdout.strip(),'lolreplay 1.2.0')
 
 if __name__=='__main__': unittest.main()

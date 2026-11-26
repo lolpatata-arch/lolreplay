@@ -11,6 +11,7 @@ import shlex
 import shutil
 import sys
 import subprocess
+import tempfile
 
 HOME=Path.home()
 HERE=Path(__file__).resolve().parent
@@ -20,6 +21,7 @@ CONF=Path(os.environ.get('XDG_CONFIG_HOME', str(HOME/'.config')))
 LOG=HOME/'.local/state/crimson-clips/f8.log'
 BEGIN='-- BEGIN CRIMSON CLIPS F8'
 END='-- END CRIMSON CLIPS F8'
+PROGRAM_FILES=('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips','lolreplay_updater.py','lolreplay_update_ui.py')
 
 def stamp(): return datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 def write(path, content, mode=None, backup=True):
@@ -30,21 +32,51 @@ def write(path, content, mode=None, backup=True):
     oldmode=path.stat().st_mode & 0o777 if path.exists() else 0o644
     temp=path.with_name(path.name+'.tmp-'+stamp()); temp.write_text(content); temp.chmod(mode if mode is not None else oldmode); temp.replace(path)
 
-def install():
+def install(expected=None):
     lockpath=HOME/'.local/state/crimson-clips/engine.lock'
     lockpath.parent.mkdir(parents=True,exist_ok=True)
     with lockpath.open('a') as lock:
         try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError: raise ValueError('A recorder operation is running. Retry after it finishes.')
-        install_locked()
+        if expected is not None:
+            installed=subprocess.run([str(BIN/'lolreplay'),'--version'],capture_output=True,text=True,timeout=10)
+            if installed.returncode or installed.stdout.strip()!='lolreplay '+expected:
+                raise ValueError('Installed version changed; check for updates again.')
+        preflight()
+        transactional_install()
 
-def install_locked():
+def preflight():
     for executable in ('gpu-screen-recorder','gsr-cli','ffmpeg','ffprobe','pactl'):
         if not shutil.which(executable): raise ValueError('Missing dependency: '+executable)
     old=BIN/'crimson-clips'
     if old.is_file():
         status=subprocess.run([str(old),'status'],capture_output=True,timeout=10)
         if status.returncode!=1: raise ValueError('Stop replay first; cannot confirm recorder is stopped.')
+
+def transactional_install():
+    # Snapshot only installer-owned paths, never recordings or user preferences.
+    raw=(HERE/'lolreplay.png').read_bytes()
+    icons=DATA/'icons/hicolor'
+    icon_dir=icons/'512x512/apps'
+    digest=hashlib.sha256(raw).hexdigest()[:12]
+    paths=[BIN/n for n in PROGRAM_FILES]+[icon_dir/n for n in (f'lolreplay-{digest}.png','lolreplay.png','crimson-clips.png')]+[icons/'scalable/apps'/n for n in ('lolreplay.svg','crimson-clips.svg')]+[DATA/'applications/crimson-clips.desktop']
+    with tempfile.TemporaryDirectory(prefix='lolreplay-install-') as backup:
+        saved={}
+        for i,path in enumerate(paths):
+            if path.is_symlink() or path.exists():
+                if not path.is_symlink() and not path.is_file(): raise ValueError('Unexpected install path: '+str(path))
+                copy=Path(backup)/str(i); shutil.copy2(path,copy,follow_symlinks=False); saved[path]=copy
+        try:
+            install_locked()
+        except BaseException:
+            for path in paths:
+                if path in saved:
+                    path.parent.mkdir(parents=True,exist_ok=True)
+                    copy=saved[path]; tmp=path.with_name(path.name+'.rollback-'+stamp()); shutil.copy2(copy,tmp,follow_symlinks=False); tmp.replace(path)
+                elif path.is_file() or path.is_symlink(): path.unlink()
+            raise
+
+def install_locked():
     # Create only the default local directory; never recreate an absent custom drive.
     from lolreplay_storage import read_config
     try: cfg=read_config()
@@ -53,7 +85,7 @@ def install_locked():
     if cfg is not None and not cfg.get('library_id') and Path(cfg.get('output_dir',str(default))).expanduser()==default:
         default.mkdir(parents=True,exist_ok=True)
     # Preserve original executable and config; install the updated compatible engine.
-    for name in ('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips'):
+    for name in PROGRAM_FILES:
         write(BIN/name,(HERE/name).read_text(),0o755)
     raw=(HERE/'lolreplay.png').read_bytes()
     icon_root=DATA/'icons/hicolor'
@@ -79,7 +111,7 @@ def install_locked():
         if shutil.which(executable):
             try: subprocess.run([executable,*args],capture_output=True,timeout=5,check=False)
             except (OSError,subprocess.SubprocessError): pass
-    print('lolreplay 1.1.0 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
+    print('lolreplay 1.2.0 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
 
 def check():
     import lolreplay_compositor as compositor
@@ -102,9 +134,10 @@ def check():
 
 def main():
     parser=argparse.ArgumentParser(description='Install lolreplay or check prerequisites without modifying files.')
-    parser.add_argument('--check',action='store_true'); args=parser.parse_args()
+    parser.add_argument('--check',action='store_true'); parser.add_argument('--update',action='store_true'); parser.add_argument('--from-version'); args=parser.parse_args()
+    if args.update and not args.from_version: parser.error('--update requires --from-version')
     if args.check: return check()
-    try: install()
+    try: install(args.from_version if args.update else None)
     except (OSError,ValueError,subprocess.SubprocessError) as e: print('ERROR:',e,file=sys.stderr); return 1
     return 0
 if __name__=='__main__': sys.exit(main())

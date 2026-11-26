@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — Manual updates (preview)
+
+- Add opt-in update checks, version selection, release notes and explicit confirmation in Settings.
+- Stable releases only by default; optional preview releases.
+- Verify official ZIP digest and archive paths; check dependencies and recorder status before updating.
+- Transactional rollback for caught installer errors; retain backups.
+- No automatic network checks, no changes to recording logic.
+- GUI and live release-download validation pending.
+
 ## 1.1.0 — Layout stability
 
 - Isolate hidden-page size hints from the active workspace.

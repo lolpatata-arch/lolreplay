@@ -24,7 +24,7 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(i.set_language('invalid'),'en_US')
         self.assertEqual(i.t('untranslated technical message'),'untranslated technical message')
     def test_ui_translation_keys(self):
-        for name in ('lolreplay-ui','lolreplay_editor.py'):
+        for name in ('lolreplay-ui','lolreplay_editor.py','lolreplay_update_ui.py'):
             tree=ast.parse(Path(__file__).with_name(name).read_text())
             for n in ast.walk(tree):
                 if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='t' and n.args and isinstance(n.args[0],ast.Constant):

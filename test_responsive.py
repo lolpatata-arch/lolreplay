@@ -102,7 +102,7 @@ def contained(widget, parent):
 sizes=((640,480),(800,600),(960,540),(1024,768),(1280,720),(1366,768),(1440,900),(1920,1080),(2560,1440),(3840,2160),(720,1280),(3440,1440))
 for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
-    assert w.settings_stack.count()==10
+    assert w.settings_stack.count()==11
     assert len(w.key_fields)==27 and len(w.pref_controls)==16
     w.prefs['thumbnails']=False
     if w.list.count():
@@ -142,7 +142,7 @@ for locale in LANGUAGES:
             assert w.editor.trim_scroll.height()>0 and w.editor.rail.height()>0
             contained(w.editor.area,w.editor)
             w.navigate(3); app.processEvents()
-            for category in range(10):
+            for category in range(11):
                 w.select_settings(category); app.processEvents()
                 assert w.settings_stack.currentIndex()==category
                 contained(w.settings_stack.currentWidget(),w.settings_stack)

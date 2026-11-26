@@ -9,8 +9,12 @@ if not args or args == ['ui']:
     target = bin_dir / 'lolreplay-ui'
     args = []
 elif args == ['--version']:
-    print('lolreplay 1.1.0')
+    print('lolreplay 1.2.0')
     sys.exit(0)
+elif args[0] == 'update':
+    target = bin_dir / 'lolreplay_updater.py'
+    args = args[1:]
+    os.execv(sys.executable, [sys.executable, str(target), *args])
 else:
     target = bin_dir / 'crimson-clips'
 try:

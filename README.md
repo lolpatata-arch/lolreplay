@@ -4,7 +4,7 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v1.1.0 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v1.2.0 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
@@ -18,6 +18,12 @@ lolreplay is a free, open-source desktop application for saving the moments that
 - Microphone and capture-output selection, external storage and local recovery on transfer failure.
 - Dark themes, custom colours, accessibility preferences and nine interface languages.
 - Reduced background polling and thumbnail work when the app is unfocused by default.
+
+## Updates (manual, opt-in)
+
+From 1.2.0, open **Settings → Updates**, click **Check for updates**, select an eligible version and read its release notes. Preview releases are hidden by default. Installation requires a separate confirmation; save any wanted replay and stop capture first. The application will ask you to reopen it after a successful update. No automatic network requests, accounts or automatic installs. The updater contacts the public GitHub release API only on request. Only newer official ZIP assets with a GitHub SHA-256 digest are eligible; missing or mismatched digests fail closed. This is an integrity check, not independent code signing. Installation runs without sudo, checks prerequisites and restores installer-owned files on caught installation errors. Power loss or forced termination cannot be guaranteed recoverable; existing per-file backups are retained.
+
+CLI alternative: `lolreplay update` lists eligible newer releases. `lolreplay update vX.Y.Z` shows notes and asks for confirmation. Add `--experimental` to include previews. First install 1.2.0 manually if upgrading from an earlier version. Future releases must keep the `lolreplay-vX.Y.Z.zip` asset and `install.py --update --from-version` contract. No automatic downgrades.
 
 ## Compatibility
 
