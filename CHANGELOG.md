@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.7.1 — Replay backgrounds (development)
+## 1.7.1 — Replay backgrounds
 
 - Classic logo plus five static logo-based wallpapers: Crimson Glow, AMOLED Minimal, Midnight Orbit, Cyber Grid and Crimson Horizon.
 - Choose the latest clip or a local still image; persist selection in UI settings and fall back to classic logo if unavailable.
 - Appearance preview and quick right-click menu; bounded image decoding and cached static presets, no live wallpapers or new dependencies.
 - Latest-clip artwork can request its thumbnail even with general library thumbnails disabled.
 - Wallpaper mode shows only the background name and change action; latest clip metadata and playback actions are exclusive to latest-clip mode. The newest clip stays in Recent clips when using a wallpaper.
-- Desktop validation pending.
+- Maintainer reported all automated tests passing and tested the wallpaper UI on Arch Linux. Cross-distribution validation remains pending.
 
 ## 1.7.0 — Performance & Polish (2026-11-26)
 

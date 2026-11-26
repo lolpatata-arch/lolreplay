@@ -1,0 +1,81 @@
+name: Publish release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tested source version (X.Y.Z)'
+        required: true
+        type: string
+      tested:
+        description: 'Full tests and desktop smoke tests passed'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && inputs.tested == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Fetch exact reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-checkout "https://github.com/$GITHUB_REPOSITORY.git" source
+          git -C source checkout --detach "$GITHUB_SHA"
+      - name: Test updater and build archive
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest test_updater -v
+          python3 scripts/build_release.py "$RELEASE_VERSION" "$RUNNER_TEMP/release"
+      - name: Upload draft and verify before publishing
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          name="lolreplay-$tag.zip"
+          asset="$RUNNER_TEMP/release/$name"
+          expected="sha256:$(sha256sum "$asset" | cut -d ' ' -f 1)"
+          if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+            test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$GITHUB_SHA"
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+          python3 - "$RELEASE_VERSION" <<'PY'
+          import sys
+          from pathlib import Path
+          version=sys.argv[1]
+          lines=Path('CHANGELOG.md').read_text().splitlines()
+          start=next(i for i,line in enumerate(lines) if line.startswith('## '+version+' '))
+          end=next((i for i in range(start+1,len(lines)) if lines[i].startswith('## ')),len(lines))
+          Path('release-notes.md').write_text('\n'.join(lines[start:end])+'\n')
+          PY
+          gh release create "$tag" "$asset" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "lolreplay $RELEASE_VERSION" --notes-file release-notes.md --draft
+          release_id="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)"
+          verified=false
+          for attempt in 1 2 3 4 5 6; do
+            if gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" | jq -e --arg name "$name" --arg digest "$expected" --argjson size "$(stat -c %s "$asset")" '.draft == true and (.assets | any(.name == $name and .digest == $digest and .size == $size and .state == "uploaded"))' >/dev/null; then
+              verified=true
+              break
+            fi
+            sleep 3
+          done
+          test "$verified" = true
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease
