@@ -2896,3 +2896,118 @@ _update_rows=[
 ('Downloading and installing…','Descargando e instalando…','Téléchargement et installation…','Download und Installation…','Загрузка и установка…','Pobieranie i instalowanie…','ダウンロードとインストール中…','正在下载并安装…','Download e installazione…'),
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _update_rows})
+
+# Smart library
+_library_rows = [
+  [
+    "Favorites only",
+    "Solo favoritos",
+    "Favoris uniquement",
+    "Nur Favoriten",
+    "Только избранное",
+    "Tylko ulubione",
+    "お気に入りのみ",
+    "仅收藏",
+    "Solo preferiti"
+  ],
+  [
+    "All games",
+    "Todos los juegos",
+    "Tous les jeux",
+    "Alle Spiele",
+    "Все игры",
+    "Wszystkie gry",
+    "すべてのゲーム",
+    "所有游戏",
+    "Tutti i giochi"
+  ],
+  [
+    "Filter by game",
+    "Filtrar por juego",
+    "Filtrer par jeu",
+    "Nach Spiel filtern",
+    "Фильтр по игре",
+    "Filtruj według gry",
+    "ゲームで絞り込む",
+    "按游戏筛选",
+    "Filtra per gioco"
+  ],
+  [
+    "Search names, games, tags…",
+    "Buscar nombres, juegos, etiquetas…",
+    "Rechercher noms, jeux, tags…",
+    "Namen, Spiele, Tags suchen…",
+    "Поиск названий, игр, тегов…",
+    "Szukaj nazw, gier, tagów…",
+    "名前、ゲーム、タグを検索…",
+    "搜索名称、游戏、标签…",
+    "Cerca nomi, giochi, tag…"
+  ],
+  [
+    "Add favorite",
+    "Añadir a favoritos",
+    "Ajouter aux favoris",
+    "Zu Favoriten hinzufügen",
+    "Добавить в избранное",
+    "Dodaj do ulubionych",
+    "お気に入りに追加",
+    "添加收藏",
+    "Aggiungi ai preferiti"
+  ],
+  [
+    "Remove favorite",
+    "Quitar de favoritos",
+    "Retirer des favoris",
+    "Aus Favoriten entfernen",
+    "Удалить из избранного",
+    "Usuń z ulubionych",
+    "お気に入りから削除",
+    "取消收藏",
+    "Rimuovi dai preferiti"
+  ],
+  [
+    "Edit game and tags",
+    "Editar juego y etiquetas",
+    "Modifier le jeu et les tags",
+    "Spiel und Tags bearbeiten",
+    "Изменить игру и теги",
+    "Edytuj grę i tagi",
+    "ゲームとタグを編集",
+    "编辑游戏和标签",
+    "Modifica gioco e tag"
+  ],
+  [
+    "Game name:",
+    "Nombre del juego:",
+    "Nom du jeu :",
+    "Spielname:",
+    "Название игры:",
+    "Nazwa gry:",
+    "ゲーム名：",
+    "游戏名称：",
+    "Nome del gioco:"
+  ],
+  [
+    "Tags (comma separated):",
+    "Etiquetas (separadas por comas):",
+    "Tags (séparés par des virgules) :",
+    "Tags (durch Kommas getrennt):",
+    "Теги (через запятую):",
+    "Tagi (oddzielone przecinkami):",
+    "タグ（カンマ区切り）：",
+    "标签（逗号分隔）：",
+    "Tag (separati da virgole):"
+  ],
+  [
+    "Library metadata unavailable",
+    "Metadatos de biblioteca no disponibles",
+    "Métadonnées indisponibles",
+    "Bibliotheksmetadaten nicht verfügbar",
+    "Метаданные недоступны",
+    "Metadane biblioteki niedostępne",
+    "ライブラリのメタデータを利用できません",
+    "库元数据不可用",
+    "Metadati della libreria non disponibili"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _library_rows})

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Smart library (1.3 development)
+
+- Persistent local favorites, manually assigned games and tags using SQLite.
+- Search by clip name, game or tags; filter favorites and games.
+- Preserve metadata when renaming clips within the application.
+- No recording changes or automatic media deletion.
+- GUI and desktop verification pending.
+
 ## 1.2.0 — Manual updates (preview)
 
 - Add opt-in update checks, version selection, release notes and explicit confirmation in Settings.
