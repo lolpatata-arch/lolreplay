@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2 — Responsive desktop
+
+- Adapt to logical window size and accessibility scaling; compact navigation, scrollable workspaces and stacked panels on narrow windows.
+- Absolute click and drag seeking in library and fullscreen playback; improve editor trim-handle hit testing.
+- Reorganize settings into ten categories with desktop navigation and a compact selector; group internal shortcuts.
+- Preserve recording, audio, storage, external drive recovery and existing preferences.
+- Arch/AMD and Debian/Intel capture verified by the maintainer in 1.0.1; new UI needs live testing.
+
 ## 1.0.1 — Encoder compatibility
 
 - Retry in CQP when the current recorder explicitly rejects CBR; retain CBR on compatible hardware.

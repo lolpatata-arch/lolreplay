@@ -2868,3 +2868,9 @@ CATALOG.update({
  'Automatic (CBR then CQP)': dict(zip(('es_ES','fr_FR','de_DE','ru_RU','pl_PL','ja_JP','zh_CN','it_IT'),('Automático (CBR y después CQP)','Automatique (CBR puis CQP)','Automatisch (CBR, dann CQP)','Авто (CBR, затем CQP)','Automatycznie (CBR, potem CQP)','自動（CBR、次にCQP）','自动（先 CBR 后 CQP）','Automatico (CBR poi CQP)'))),
  'History: {0} · CQP size varies with content': dict(zip(('es_ES','fr_FR','de_DE','ru_RU','pl_PL','ja_JP','zh_CN','it_IT'),('Historial: {0} · El tamaño CQP depende del contenido','Historique : {0} · La taille CQP dépend du contenu','Verlauf: {0} · CQP-Größe hängt vom Inhalt ab','История: {0} · Размер CQP зависит от содержимого','Historia: {0} · Rozmiar CQP zależy od treści','履歴: {0} · CQPのサイズは内容によって変動','历史：{0} · CQP 大小随内容变化','Cronologia: {0} · La dimensione CQP dipende dal contenuto'))),
 })
+
+# Responsive settings navigation.
+CATALOG.update({
+ 'Storage': dict(zip(list(LANGUAGES)[1:],('Almacenamiento','Stockage','Speicher','Хранилище','Pamięć masowa','ストレージ','存储','Archiviazione'))),
+ 'Navigation': dict(zip(list(LANGUAGES)[1:],('Navegación','Navigation','Navigation','Навигация','Nawigacja','ナビゲーション','导航','Navigazione'))),
+})

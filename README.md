@@ -4,7 +4,7 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v1.0.1 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v1.0.2 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
@@ -12,7 +12,8 @@ lolreplay is a free, open-source desktop application for saving the moments that
 
 - GPU-assisted instant replay, adjustable quality, history and clip duration.
 - Global capture shortcut (F8 by default), configurable internal shortcuts and keyboard navigation.
-- Local clip library with thumbnails, search, sorting, fullscreen playback and an integrated editor.
+- Local clip library with thumbnails, search, sorting, fullscreen playback and an integrated editor. Click or drag on playback bars to seek directly.
+- Responsive layouts with compact navigation and scrollable pages for smaller displays, plus categorized settings.
 - Trim recordings, adjust audio and add local music; save edits directly to the library.
 - Microphone and capture-output selection, external storage and local recovery on transfer failure.
 - Dark themes, custom colours, accessibility preferences and nine interface languages.
@@ -22,8 +23,8 @@ lolreplay is a free, open-source desktop application for saving the moments that
 
 | Environment | Status |
 | --- | --- |
-| Arch Linux + Hyprland | Tested by the project maintainer during development |
-| Debian 13 + Hyprland (Intel) | Live capture confirmed with manual CQP workaround; 1.0.1 automatic retry requires live verification |
+| Arch Linux + Hyprland (AMD) | Live capture confirmed through v1.0.1; v1.0.2 UI awaiting live testing |
+| Debian 13 + Hyprland (Intel) | Live capture and automatic CQP retry confirmed in v1.0.1; v1.0.2 UI awaiting live testing |
 | Niri | Experimental; live capture and global shortcuts not yet verified |
 | Other Linux distributions | May work if prerequisites are available; unverified |
 | Ubuntu | Not an official support target |

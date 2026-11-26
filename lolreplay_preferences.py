@@ -32,3 +32,10 @@ def validated(raw):
 
 def merge_ui(data, prefs):
     return {**(data if isinstance(data, dict) else {}), 'preferences': validated(prefs)}
+
+
+def layout_mode(width, height, text_scale=100):
+    """Breakpoints use logical window size and the user's accessibility scale."""
+    factor = text_scale / 100
+    w, h = width / factor, height / factor
+    return w < 1180 or h < 740, w < 1000, w < 1140, w < 1040

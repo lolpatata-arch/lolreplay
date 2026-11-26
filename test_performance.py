@@ -66,6 +66,7 @@ class PerformanceTests(unittest.TestCase):
             self.assertTrue((home/'Videos/CrimsonClips').is_dir())
             self.assertTrue((home/'.local/bin/lolreplay_performance.py').is_file())
             self.assertTrue((home/'.local/bin/lolreplay_icons.py').is_file())
+            self.assertTrue((home/'.local/bin/lolreplay_widgets.py').is_file())
             icon_path=home/'.local/share/icons/hicolor/512x512/apps/lolreplay.png'
             self.assertEqual(icon_path.read_bytes(),(root/'lolreplay.png').read_bytes())
             raw=icon_path.read_bytes(); digest=hashlib.sha256(raw).hexdigest()[:12]
@@ -76,6 +77,6 @@ class PerformanceTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertEqual(len(list(legacy.parent.glob('lolreplay.svg.bak-*'))),1)
             p=subprocess.run([sys.executable,str(home/'.local/bin/lolreplay'),'--version'],env=env,capture_output=True,text=True)
-            self.assertEqual(p.stdout.strip(),'lolreplay 1.0.1')
+            self.assertEqual(p.stdout.strip(),'lolreplay 1.0.2')
 
 if __name__=='__main__': unittest.main()

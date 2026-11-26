@@ -4,10 +4,11 @@ import shutil
 from pathlib import Path
 from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize
 from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence
-from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog)
+from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog)
 import lolreplay_storage as storage
 from lolreplay_export import probe, export_args, temp_for
 from lolreplay_icons import decorate
+from lolreplay_widgets import SeekSlider
 try:
     from PySide6.QtMultimedia import QMediaPlayer,QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -56,7 +57,7 @@ class FullscreenPlayer(QDialog):
         self.video.setStyleSheet('background:#050505;border:none;'); layout.addWidget(self.video,1)
         bar=QFrame(); bar.setObjectName('fullscreenControls'); row=QHBoxLayout(bar); row.setContentsMargins(16,8,16,8)
         self.ink=parent.button_ink() if hasattr(parent,'button_ink') else '#ffffff'; self.play=decorate(btn(t('Play'),toggle,'primary'),'play',self.ink); row.addWidget(self.play)
-        self.seek=QSlider(Qt.Orientation.Horizontal); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.setRange(0,max(0,player.duration())); self.seek.setValue(player.position()); self.seek.sliderMoved.connect(player.setPosition); row.addWidget(self.seek,1)
+        self.seek=SeekSlider(); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.setRange(0,max(0,player.duration())); self.seek.setValue(player.position()); self.seek.seekRequested.connect(player.setPosition); row.addWidget(self.seek,1)
         self.time=lab('', 'muted'); row.addWidget(self.time); row.addWidget(decorate(btn(t('Exit full screen')+' · Esc',self.reject),'full')); layout.addWidget(bar)
         self.shortcuts=[]
         keymap=parent.keymap; bindings={'Esc':self.reject};
@@ -113,9 +114,9 @@ class Timeline(QWidget):
         p.setPen(QColor('#a6a6b2')); p.drawText(12,73,'00:00'); t=clock(self.total); p.drawText(self.width()-12-p.fontMetrics().horizontalAdvance(t),73,t)
         p.end()
     def mousePressEvent(self,e):
-        if not self.total or not self.isEnabled(): return
+        if e.button()!=Qt.MouseButton.LeftButton or not self.total or not self.isEnabled(): return
         x=e.position().x(); a,b=self.to_x(self.start),self.to_x(self.end)
-        if min(abs(x-a),abs(x-b))<=12: self.drag='start' if abs(x-a)<=abs(x-b) else 'end'
+        if 22<=e.position().y()<=54 and min(abs(x-a),abs(x-b))<=9: self.drag='start' if abs(x-a)<=abs(x-b) else 'end'
         else: self.drag='seek'
         self.drag_to(x)
     def mouseMoveEvent(self,e):
@@ -135,12 +136,12 @@ class Editor(QWidget):
         main=QVBoxLayout(self); main.setContentsMargins(0,0,0,0); main.setSpacing(12)
         top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=QComboBox(); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
         self.title=lab(t('No clip selected'),'muted'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
-        area=QHBoxLayout(); area.setSpacing(16); left=QFrame(); left.setObjectName('feature'); l=QVBoxLayout(left); l.setContentsMargins(0,0,0,0); l.setSpacing(9)
+        area=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.area=area; area.setSpacing(16); left=QFrame(); left.setObjectName('feature'); l=QVBoxLayout(left); l.setContentsMargins(0,0,0,0); l.setSpacing(9)
         if MEDIA:
             self.video=ClickVideoWidget(); self.video.clicked.connect(lambda:self.play_selection() if self.window.prefs['video_click'] else None); self.video.setMinimumHeight(165); self.video.setStyleSheet('background:#050505'); l.addWidget(self.video,1)
             self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(.45); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); self.player.positionChanged.connect(self.position); self.player.playbackStateChanged.connect(self.play_state); self.player.errorOccurred.connect(lambda e,m:self.note.setText(t('Preview: ')+m))
         else: l.addWidget(lab(t('Preview unavailable. Export is still supported.'),'muted'),1)
-        row=QHBoxLayout(); self.play=decorate(btn(t('Play selection'),self.play_selection,'primary'),'play','#ffffff'); row.addWidget(self.play); self.position_label=lab('00:00.0 / 00:00.0','muted'); row.addWidget(self.position_label); row.addStretch();
+        row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.controls_row=row; self.play=decorate(btn(t('Play selection'),self.play_selection,'primary'),'play','#ffffff'); row.addWidget(self.play); self.position_label=lab('00:00.0 / 00:00.0','muted'); row.addWidget(self.position_label); row.addStretch();
         if MEDIA:
             self.full_btn=decorate(btn(t('Full screen'),self.fullscreen_preview),'full'); row.addWidget(self.full_btn)
         l.addLayout(row)
@@ -151,7 +152,7 @@ class Editor(QWidget):
         grid.addWidget(lab(t('IN'),'eyebrow'),0,0); grid.addWidget(lab(t('OUT'),'eyebrow'),0,1); grid.addWidget(self.start,1,0); grid.addWidget(self.end,1,1)
         self.markin=btn(t('Set in at playhead'),lambda:self.set_range(self.timeline.pos,self.end.value(),'start')); self.markout=btn(t('Set out at playhead'),lambda:self.set_range(self.start.value(),self.timeline.pos,'end')); grid.addWidget(self.markin,2,0); grid.addWidget(self.markout,2,1); l.addLayout(grid)
         row=QHBoxLayout(); self.selection=lab(t('Selected: {0}','00:00.0'),'section'); row.addWidget(self.selection); row.addStretch(); self.reset=btn(t('Reset trim'),lambda:self.set_range(0,self.total)); row.addWidget(self.reset); l.addLayout(row); area.addWidget(left,1)
-        rail=QFrame(); rail.setObjectName('rail'); rail.setFixedWidth(325 if language() in ('de_DE','fr_FR','ru_RU','pl_PL','es_ES','it_IT') else 275); r=QVBoxLayout(rail); r.setContentsMargins(15,8,0,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); area.addWidget(rail); main.addLayout(area,1)
+        rail=QFrame(); rail.setObjectName('rail'); self.rail=rail; r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); area.addWidget(rail); main.addLayout(area,1)
         self.note=lab(window.hotkey_text('Save a clip with F8 to start editing.'),'muted'); self.note.setWordWrap(True); main.addWidget(self.note); self.controls()
     def slider(self,layout,value):
         row=QHBoxLayout(); s=QSlider(Qt.Orientation.Horizontal); s.setRange(0,100); s.setValue(value); n=lab(f'{value}%','muted'); s.valueChanged.connect(lambda v:n.setText(f'{v}%')); row.addWidget(s,1); row.addWidget(n); layout.addLayout(row); return s
