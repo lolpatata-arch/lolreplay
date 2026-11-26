@@ -114,7 +114,13 @@ for locale in LANGUAGES:
         assert ui.read_json(ui.UI_CONFIG)['replay_background']=={'mode':'image','path':str(custom_path)}
         custom_path.unlink(); w.save_background('image',str(custom_path)); assert w.art.selected_art().isNull()
         w.save_background('last_clip'); assert w.replay_background['mode']=='last_clip'
+        if w.snapshot:
+            assert w.latest_title.text()==ui.Path(w.snapshot[0][0]).stem
+            assert not w.latest_btn.isHidden() and not w.latest_edit.isHidden()
         w.save_background('logo'); assert w.art.selected_art() is None
+        assert w.latest_title.text()==ui.t('Classic logo') and not w.latest_meta.text()
+        assert w.latest_btn.isHidden() and w.latest_edit.isHidden() and not w.background_btn.isHidden()
+        if w.snapshot: assert w.recent.item(0).data(ui.Qt.ItemDataRole.UserRole)==w.snapshot[0][0]
         assert set(w.key_fields)==set(LABELS), (set(w.key_fields),set(LABELS))
         assert set(w.pref_controls)==set(OPTIONS), (set(w.pref_controls),set(OPTIONS))
         w.prefs['thumbnails']=False

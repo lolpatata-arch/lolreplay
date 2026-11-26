@@ -131,7 +131,7 @@ class Artwork(QWidget):
             return self.wallpapers[mode]
         return None
     def mouseReleaseEvent(self,event):
-        if event.button()==Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()) and self.window.snapshot:
+        if event.button()==Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()) and self.window.replay_background['mode']=='last_clip' and self.window.snapshot:
             self.window.open_latest(); event.accept(); return
         super().mouseReleaseEvent(event)
     def paintEvent(self,event):
@@ -250,13 +250,13 @@ class Window(QMainWindow):
         v=self.page(t('Replay'),'')
         # Two-column media workspace: recordings first, capture controls on the right.
         workspace=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.overview_layout=workspace; workspace.setSpacing(16); left=QVBoxLayout(); self.overview_content=left; left.setSpacing(11)
-        heading=QHBoxLayout(); heading.addWidget(label(t('Latest capture'),'section')); heading.addStretch(); heading.addWidget(decorate(button(t('All clips'),lambda:self.navigate(1),'quiet'),'arrow')); left.addLayout(heading)
+        heading=QHBoxLayout(); self.art_heading=label(t('Latest capture'),'section'); heading.addWidget(self.art_heading); heading.addStretch(); heading.addWidget(decorate(button(t('All clips'),lambda:self.navigate(1),'quiet'),'arrow')); left.addLayout(heading)
         feature=panel(); feature.setObjectName('feature'); fv=QVBoxLayout(feature); fv.setContentsMargins(0,0,0,6); fv.setSpacing(8)
         self.art=Artwork(self); self.art.custom_pix=backgrounds.load_image(self.replay_background['path']) if self.replay_background['mode']=='image' else QPixmap(); self.art.setMinimumHeight(170); fv.addWidget(self.art,1)
         details=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.latest_details=details; details.setContentsMargins(6,2,6,0); info=QVBoxLayout(); info.setSpacing(3)
         self.latest_title=label(t('No recordings yet'),'section'); self.latest_title.setWordWrap(True); self.latest_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); info.addWidget(self.latest_title)
         self.latest_meta=label(self.hotkey_text('Start replay, then press F8 to save a clip.'),'muted'); self.latest_meta.setWordWrap(True); info.addWidget(self.latest_meta); details.addLayout(info,1)
-        self.latest_edit=decorate(button(t('Edit clip'),self.edit_latest),'edit'); self.latest_edit.setEnabled(False); details.addWidget(self.latest_edit); self.latest_btn=decorate(button(t('Watch'),self.open_latest,'primary'),'play','#ffffff'); self.latest_btn.setEnabled(False); details.addWidget(self.latest_btn); fv.addLayout(details); left.addWidget(feature,3)
+        self.latest_edit=decorate(button(t('Edit clip'),self.edit_latest),'edit'); self.latest_edit.setEnabled(False); details.addWidget(self.latest_edit); self.latest_btn=decorate(button(t('Watch'),self.open_latest,'primary'),'play','#ffffff'); self.latest_btn.setEnabled(False); details.addWidget(self.latest_btn); self.background_btn=button(t('Change background'),lambda:self.background_menu(self.art.rect().center()),'quiet'); details.addWidget(self.background_btn); fv.addLayout(details); left.addWidget(feature,3)
         row=QHBoxLayout(); row.addWidget(label(t('Recent clips'),'section')); row.addStretch(); self.clip_count=label(clip_count(0),'muted'); row.addWidget(self.clip_count); left.addLayout(row)
         self.recent=ResponsiveClipList(); self.setup_tiles(self.recent,204); self.recent.setAccessibleName(t('Recent clips')); self.recent.setMinimumHeight(170); self.recent.setMaximumHeight(300); self.recent.itemClicked.connect(self.open_recent); left.addWidget(self.recent,1)
         self.recent_empty=QFrame(); self.recent_empty.setObjectName('collectionStrip'); er=QHBoxLayout(self.recent_empty); er.setContentsMargins(14,12,14,12); er.setSpacing(12)
@@ -296,12 +296,24 @@ class Window(QMainWindow):
 
     def update_latest(self):
         key=self.snapshot[0] if self.snapshot else None
-        self.latest_btn.setEnabled(bool(key)); self.latest_edit.setEnabled(bool(key)); self.art.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor); self.art.setToolTip((t('Watch latest clip')+' · ' if key else '')+t('Right-click to change replay background'))
-        if key:
-            path,mtime,size=key; self.latest_title.setText(Path(path).stem); self.latest_meta.setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm')+f'  ·  {size/1024**2:.1f} MB  ·  '+t('Click preview to watch')); self.art.setMaximumHeight(16777215); self.art.set_art(self.thumbs.get(key))
+        mode=self.replay_background['mode']; show_clip=mode=='last_clip'
+        self.art_heading.setText(t('Latest capture') if show_clip else t('Replay background'))
+        self.latest_btn.setVisible(show_clip); self.latest_edit.setVisible(show_clip); self.background_btn.setVisible(not show_clip)
+        self.latest_btn.setEnabled(show_clip and bool(key)); self.latest_edit.setEnabled(show_clip and bool(key))
+        self.art.setCursor(Qt.CursorShape.PointingHandCursor if show_clip and key else Qt.CursorShape.ArrowCursor)
+        self.art.setToolTip((t('Watch latest clip')+' · ' if show_clip and key else '')+t('Right-click to change replay background'))
+        self.art.set_art(self.thumbs.get(key) if key else None)
+        self.art.setMaximumHeight(16777215)
+        if not show_clip:
+            self.latest_title.setText(t(backgrounds.LABELS[mode]))
+            self.latest_meta.setText(t('Image unavailable. Showing the classic logo.') if mode=='image' and self.art.custom_pix.isNull() else '')
+            self.latest_meta.setVisible(bool(self.latest_meta.text()))
+        elif key:
+            path,mtime,size=key
+            self.latest_title.setText(Path(path).stem); self.latest_meta.setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm')+f'  ·  {size/1024**2:.1f} MB  ·  '+t('Click preview to watch')); self.latest_meta.show()
         else:
-            self.latest_title.setText(t('No recordings yet')); self.latest_meta.setText(self.hotkey_text('Start replay, then press F8 to save your first clip.')); self.art.setMaximumHeight(16777215); self.art.set_art(None)
-        if self.replay_background['mode']=='last_clip': self.sync_background_controls()
+            self.latest_title.setText(t('No recordings yet')); self.latest_meta.setText(self.hotkey_text('Start replay, then press F8 to save your first clip.')); self.latest_meta.show()
+        if show_clip: self.sync_background_controls()
 
     def build_library(self):
         # Keep native video outside any scroll area, as in the editor.
@@ -661,10 +673,10 @@ class Window(QMainWindow):
         value=backgrounds.validated({'mode':mode,'path':path})
         try: write_ui({**read_json(UI_CONFIG),'replay_background':value})
         except OSError as exc: self.message.setText(str(exc)); return
-        self.replay_background=value
+        previous_mode=self.replay_background['mode']; self.replay_background=value
         self.art.custom_pix=pix if pix is not None else (backgrounds.load_image(path) if mode=='image' else QPixmap())
-        self.sync_background_controls(); self.art.update()
-        if mode=='last_clip': self.refresh_library(force=True); self.next_thumbnail()
+        self.update_latest(); self.sync_background_controls(); self.art.update()
+        if (previous_mode=='last_clip')!=(mode=='last_clip'): self.refresh_library(force=True); self.next_thumbnail()
 
     def sync_background_controls(self):
         if not hasattr(self,'background_choice'): return
@@ -1388,7 +1400,7 @@ class Window(QMainWindow):
             try: stamp=self.library_db.path.stat().st_mtime_ns
             except OSError: stamp=None
             if stamp==self.metadata_stamp: return
-        self.clip_count.setText(clip_count(len(files))); self.empty.setVisible(not files); self.recent_empty.setVisible(len(files)<2); self.recent.setVisible(len(files)>1); self.collection_title.setText(t('Your first clip is saved') if files else t('Your collection starts here')); self.collection_hint.setText(t('More saves will appear here.') if files else t('Saved clips appear automatically.')); total=sum(f[2] for f in files); self.collection_summary.setText(clip_count(len(files))+'  ·  '+(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')+'  ·  '+t('Local library')); self.collection_detail.setText(t('Click a thumbnail to watch it.') if files else t('The latest capture will appear here.'))
+        self.clip_count.setText(clip_count(len(files))); self.empty.setVisible(not files); self.recent_empty.setVisible(len(files)<(2 if self.replay_background['mode']=='last_clip' else 1)); self.recent.setVisible(len(files)> (1 if self.replay_background['mode']=='last_clip' else 0)); self.collection_title.setText(t('Your first clip is saved') if files else t('Your collection starts here')); self.collection_hint.setText(t('More saves will appear here.') if files else t('Saved clips appear automatically.')); total=sum(f[2] for f in files); self.collection_summary.setText(clip_count(len(files))+'  ·  '+(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')+'  ·  '+t('Local library')); self.collection_detail.setText(t('Click a thumbnail to watch it.') if files else t('The latest capture will appear here.'))
         try: db_stamp=self.library_db.path.stat().st_mtime_ns
         except OSError: db_stamp=None
         if files==self.snapshot and not force:
@@ -1406,7 +1418,8 @@ class Window(QMainWindow):
         self.refresh_game_filter()
         self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and files and k==files[0]))}
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
-        recent_paths={f[0]:i for i,f in enumerate(files[1:7])}; recent_items={}
+        recent_files=files[1:7] if self.replay_background['mode']=='last_clip' else files[:6]
+        recent_paths={f[0]:i for i,f in enumerate(recent_files)}; recent_items={}
         for index,key in enumerate(ordered):
             path,mtime,size=key; p=Path(path); stamp=QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm'); duration=self.durations.get(key); suffix=' · '+library.duration_text(duration) if duration is not None else ''; item=QListWidgetItem(f'{p.stem}\n{stamp} · {size/1024**2:.0f} MB'+suffix); item.setData(Qt.ItemDataRole.UserRole,path); favorite,game,labels=self.metadata_for(path); item.setData(Qt.ItemDataRole.UserRole+1,favorite); item.setData(Qt.ItemDataRole.UserRole+2,game); item.setToolTip('\n'.join([path,game,', '.join(labels)]).strip())
             pix=self.thumbs.get(key); item.setIcon(QIcon(pix) if pix is not None else self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)); self.list.addItem(item)
