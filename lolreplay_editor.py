@@ -1,12 +1,13 @@
 """Editor page for lolreplay. Recorder and F8 are not involved."""
 from lolreplay_i18n import t, clip_count, LANGUAGES, set_language, language
 import shutil
+import math
 from pathlib import Path
-from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize
-from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence
-from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog,QSplitter)
+from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize, QTimer
+from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence, QPixmap
+from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog,QSplitter,QCheckBox)
 import lolreplay_storage as storage
-from lolreplay_export import probe, probe_details, export_args, temp_for, next_export_path
+from lolreplay_export import probe, probe_details, export_args, temp_for, next_export_path, filmstrip_args, SPEEDS
 from lolreplay_icons import decorate
 from lolreplay_widgets import SeekSlider, PageScroll, fit_combo
 try:
@@ -92,31 +93,45 @@ def show_fullscreen(owner,player,inline,toggle):
 class Timeline(QWidget):
     changed=Signal(float,float); seek=Signal(float)
     def __init__(self):
-        super().__init__(); self.total=0.; self.start=0.; self.end=0.; self.pos=0.; self.drag=None; self.setMinimumHeight(78); self.setMouseTracking(True)
-    def to_x(self,t): return 12+(self.width()-24)*t/max(self.total,.001)
-    def value(self,x): return min(self.total,max(0.,(x-12)*self.total/max(1,self.width()-24)))
+        super().__init__(); self.total=0.; self.start=0.; self.end=0.; self.pos=0.; self.drag=None; self.zoom=1; self.offset=0.; self.frames=QPixmap(); self.setMinimumHeight(104); self.setMouseTracking(True)
+    def span(self): return self.total/max(1,self.zoom)
+    def to_x(self,t): return 12+(self.width()-24)*(t-self.offset)/max(self.span(),.001)
+    def value(self,x): return min(self.total,max(0.,self.offset+(x-12)*self.span()/max(1,self.width()-24)))
+    def set_view(self,zoom,position):
+        self.zoom=max(1,zoom); self.offset=max(0.,min(self.total-self.span(),position)); self.update()
     def paintEvent(self,event):
-        p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(QRectF(12,25,max(1,self.width()-24),26),3,3)
+        p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); width=max(1,self.width()-24)
+        strip=QRectF(12,23,width,48); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(strip,3,3)
         a,b=self.to_x(self.start),self.to_x(self.end)
         if self.total:
             accent=self.palette().highlight().color() if not hasattr(self,'accent') else QColor(self.accent)
-            p.setBrush(accent.darker(210)); p.drawRoundedRect(QRectF(a,25,max(1,b-a),26),3,3)
-            p.setPen(QPen(QColor('#a6a6b2'),1));
+            p.save(); p.setClipRect(strip)
+            if not self.frames.isNull():
+                source=QRectF(self.frames.width()*self.offset/self.total,0,self.frames.width()*self.span()/self.total,self.frames.height())
+                p.drawPixmap(strip,self.frames,source)
+            else:
+                p.fillRect(strip,accent.darker(250))
+            p.fillRect(QRectF(12,23,max(0,min(width,a-12)),48),QColor(0,0,0,155))
+            p.fillRect(QRectF(max(12,b),23,max(0,12+width-max(12,b)),48),QColor(0,0,0,155))
+            left=max(12,a); right=min(12+width,b)
+            if right>left:
+                p.setPen(QPen(accent,2)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawRect(QRectF(left,24,right-left,46))
+            p.restore()
+            p.setPen(QPen(QColor('#a6a6b2'),1))
             for i in range(21):
-                x=round(12+(self.width()-24)*i/20); p.drawLine(x,21 if i%5 else 17,x,24)
-            p.setPen(Qt.PenStyle.NoPen); p.setBrush(accent)
+                x=round(12+width*i/20); p.drawLine(x,20 if i%5 else 16,x,22)
             for x in (a,b):
-                p.drawRoundedRect(QRectF(x-4,22,8,32),2,2)
-                p.setPen(QPen(accent.lighter(165),1)); p.drawLine(round(x),30,round(x),45); p.setPen(Qt.PenStyle.NoPen)
-            p.setPen(QPen(QColor('#eeeeee'),1.5)); x=round(self.to_x(self.pos)); p.drawLine(x,12,x,58)
-            p.setBrush(QColor('#eeeeee')); p.drawRoundedRect(QRectF(x-3,9,6,6),1,1)
-        p.setPen(QColor('#a6a6b2')); p.drawText(12,73,'00:00'); t=clock(self.total); p.drawText(self.width()-12-p.fontMetrics().horizontalAdvance(t),73,t)
-        p.end()
+                if 12<=x<=12+width:
+                    p.setPen(Qt.PenStyle.NoPen); p.setBrush(accent); p.drawRoundedRect(QRectF(x-4,20,8,54),2,2)
+                    p.setPen(QPen(accent.lighter(165),1)); p.drawLine(round(x),31,round(x),63)
+            x=round(self.to_x(self.pos))
+            if 12<=x<=12+width:
+                p.setPen(QPen(QColor('#eeeeee'),1.5)); p.drawLine(x,12,x,80); p.setBrush(QColor('#eeeeee')); p.drawRoundedRect(QRectF(x-3,9,6,6),1,1)
+        p.setPen(QColor('#a6a6b2')); p.drawText(12,96,clock(self.offset)); end=clock(min(self.total,self.offset+self.span())); p.drawText(self.width()-12-p.fontMetrics().horizontalAdvance(end),96,end); p.end()
     def mousePressEvent(self,e):
         if e.button()!=Qt.MouseButton.LeftButton or not self.total or not self.isEnabled(): return
         x=e.position().x(); a,b=self.to_x(self.start),self.to_x(self.end)
-        if 22<=e.position().y()<=54 and min(abs(x-a),abs(x-b))<=9: self.drag='start' if abs(x-a)<=abs(x-b) else 'end'
+        if 20<=e.position().y()<=74 and min(abs(x-a),abs(x-b))<=9: self.drag='start' if abs(x-a)<=abs(x-b) else 'end'
         else: self.drag='seek'
         self.drag_to(x)
     def mouseMoveEvent(self,e):
@@ -125,14 +140,16 @@ class Timeline(QWidget):
         if self.drag: self.drag_to(e.position().x()); self.drag=None
     def drag_to(self,x):
         v=self.value(x); minimum=min(.1,self.total)
-        if self.drag=='start': self.changed.emit(min(v,self.end-minimum),self.end)
-        elif self.drag=='end': self.changed.emit(self.start,max(v,self.start+minimum))
+        if self.drag=='start': self.changed.emit(max(0,min(v,self.end-minimum)),self.end)
+        elif self.drag=='end': self.changed.emit(self.start,min(self.total,max(v,self.start+minimum)))
         else: self.seek.emit(v)
+
 
 class Editor(QWidget):
     def __init__(self,window):
         super().__init__(); self.window=window; self.source=None; self.music=None; self.total=0.; self.tracks=0; self.temp=None; self.target=None; self.cancelled=False; self.buf=''; self.err=''; self.previewing=False; self.player=None
         self.proc=QProcess(self); self.proc.readyReadStandardOutput.connect(self.progress_read); self.proc.readyReadStandardError.connect(self.error_read); self.proc.finished.connect(self.finished); self.proc.errorOccurred.connect(self.process_error)
+        self.strip_proc=QProcess(self); self.strip_proc.finished.connect(self.strip_done); self.strip_proc.errorOccurred.connect(self.strip_error); self.strip_watch=QTimer(self); self.strip_watch.setSingleShot(True); self.strip_watch.timeout.connect(self.strip_proc.kill); self.strip_pending=None; self.strip_current=None
         main=QVBoxLayout(self); main.setContentsMargins(0,0,0,0); main.setSpacing(12)
         top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=fit_combo(QComboBox()); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
         self.title=lab(t('No clip selected'),'muted'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
@@ -148,6 +165,11 @@ class Editor(QWidget):
         if MEDIA:
             self.full_btn=decorate(btn(t('Full screen'),self.fullscreen_preview),'full'); row.addWidget(self.full_btn)
         trim_layout.addLayout(row)
+        tools=QHBoxLayout(); self.zoom_box=fit_combo(QComboBox()); self.zoom_box.setAccessibleName(t('Timeline zoom'))
+        for factor in (1,2,4,8): self.zoom_box.addItem(f'{factor}×',factor)
+        self.zoom_box.currentIndexChanged.connect(self.change_zoom); tools.addWidget(lab(t('Timeline zoom'),'muted')); tools.addWidget(self.zoom_box)
+        self.pan=QSlider(Qt.Orientation.Horizontal); self.pan.setRange(0,1000); self.pan.setAccessibleName(t('Timeline scroll')); self.pan.valueChanged.connect(self.change_pan); tools.addWidget(self.pan,1)
+        self.loop=QCheckBox(t('Loop selection')); tools.addWidget(self.loop); trim_layout.addLayout(tools)
         self.timeline=Timeline(); self.timeline.setAccessibleName(t('Trim timeline')); self.timeline.setToolTip(t('Drag the handles to trim; click to seek')); self.timeline.changed.connect(self.set_range); self.timeline.seek.connect(self.seek); trim_layout.addWidget(self.timeline)
         grid=QGridLayout(); self.start=QDoubleSpinBox(); self.end=QDoubleSpinBox()
         for w in (self.start,self.end): w.setDecimals(3); w.setSingleStep(.1); w.setRange(0,0); w.setSuffix(' s'); w.setKeyboardTracking(False)
@@ -155,7 +177,16 @@ class Editor(QWidget):
         grid.addWidget(lab(t('IN'),'eyebrow'),0,0); grid.addWidget(lab(t('OUT'),'eyebrow'),0,1); grid.addWidget(self.start,1,0); grid.addWidget(self.end,1,1)
         self.markin=btn(t('Set in at playhead'),lambda:self.set_range(self.timeline.pos,self.end.value(),'start')); self.markout=btn(t('Set out at playhead'),lambda:self.set_range(self.start.value(),self.timeline.pos,'end')); grid.addWidget(self.markin,2,0); grid.addWidget(self.markout,2,1); trim_layout.addLayout(grid)
         row=QHBoxLayout(); self.selection=lab(t('Selected: {0}','00:00.0'),'section'); row.addWidget(self.selection); row.addStretch(); self.reset=btn(t('Reset trim'),lambda:self.set_range(0,self.total)); row.addWidget(self.reset); trim_layout.addLayout(row); self.trim_scroll=PageScroll(trim); l.addWidget(self.trim_scroll,2); area.addWidget(left)
-        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); self.track_panel=QWidget(); self.track_layout=QVBoxLayout(self.track_panel); self.track_layout.setContentsMargins(0,0,0,0); r.addWidget(self.track_panel); self.track_sliders=[]; self.track_panel.hide(); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
+        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); self.track_panel=QWidget(); self.track_layout=QVBoxLayout(self.track_panel); self.track_layout.setContentsMargins(0,0,0,0); r.addWidget(self.track_panel); self.track_sliders=[]; self.track_panel.hide(); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); self.aspect=fit_combo(QComboBox()); self.aspect.setAccessibleName(t('Export format')); r.addWidget(lab(t('Export format'),'muted'))
+        for title,key in [(t('Original aspect'),'original'),(t('Vertical 9:16'),'vertical'),(t('Square 1:1'),'square')]: self.aspect.addItem(title,key)
+        r.addWidget(self.aspect); self.speed=fit_combo(QComboBox()); self.speed.setAccessibleName(t('Export speed')); r.addWidget(lab(t('Export speed'),'muted'))
+        for rate in SPEEDS: self.speed.addItem(f'{rate:g}×',rate)
+        self.speed.setCurrentIndex(self.speed.findData(1.0)); r.addWidget(self.speed); self.speed.currentIndexChanged.connect(self.update_export_duration)
+        self.quality=fit_combo(QComboBox()); self.quality.setAccessibleName(t('Export quality')); r.addWidget(lab(t('Export quality'),'muted'))
+        for title,key in [(t('Small file'),'small'),(t('Balanced quality'),'balanced'),(t('High quality'),'high')]: self.quality.addItem(title,key)
+        self.quality.setCurrentIndex(self.quality.findData('balanced')); r.addWidget(self.quality)
+        self.export_duration=lab('','muted'); r.addWidget(self.export_duration); self.replace_original=QCheckBox(t('Replace original')); r.addWidget(self.replace_original)
+        hint=lab(t('Exports a new copy by default. Multitrack originals are always kept.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Export clip'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
         self.note=lab(window.hotkey_text('Save a clip with F8 to start editing.'),'muted'); self.note.setWordWrap(True); self.note.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.note); self.controls()
     def set_stacked(self, stacked):
         orientation=Qt.Orientation.Vertical if stacked else Qt.Orientation.Horizontal
@@ -167,10 +198,54 @@ class Editor(QWidget):
     def busy(self): return self.temp is not None
     def controls(self):
         ready=bool(self.source and self.total>0); busy=self.busy()
-        for w in (self.timeline,self.start,self.end,self.reset,self.vol,self.music_btn): w.setEnabled(ready and not busy)
+        for w in (self.timeline,self.start,self.end,self.reset,self.vol,self.music_btn,self.zoom_box,self.loop,self.aspect,self.speed,self.quality): w.setEnabled(ready and not busy)
         self.play.setEnabled(ready and self.player is not None and not busy); self.markin.setEnabled(self.play.isEnabled()); self.markout.setEnabled(self.play.isEnabled()); self.musicvol.setEnabled(ready and bool(self.music) and not busy); self.clear_music.setEnabled(bool(self.music) and not busy); self.choose.setEnabled(not busy and self.choose.count()>1); self.export.setEnabled(ready and not busy and shutil.which('ffmpeg') is not None); self.cancel.setEnabled(busy)
-        self.track_panel.setEnabled(ready and not busy)
+        self.track_panel.setEnabled(ready and not busy); self.pan.setEnabled(ready and not busy and self.timeline.zoom>1); self.replace_original.setEnabled(ready and not busy and self.tracks<=1 and self.source.suffix.lower()=='.mp4') if ready else self.replace_original.setEnabled(False)
         if MEDIA: self.full_btn.setEnabled(ready and not busy)
+    def change_zoom(self,*_):
+        factor=self.zoom_box.currentData() or 1
+        span=self.total/factor
+        maximum=max(0,self.total-span); offset=max(0,min(maximum,self.timeline.pos-span/2))
+        self.timeline.set_view(factor,offset); self.pan.blockSignals(True); self.pan.setValue(round(1000*offset/maximum) if maximum else 0); self.pan.blockSignals(False); self.controls()
+
+    def change_pan(self,value):
+        self.timeline.set_view(self.timeline.zoom,max(0,self.total-self.timeline.span())*value/1000)
+
+    def update_export_duration(self,*_):
+        if not hasattr(self,'export_duration'): return
+        duration=max(0,self.end.value()-self.start.value())/(self.speed.currentData() or 1.0)
+        self.export_duration.setText(t('Output duration: {0}',clock(duration)))
+
+    def request_strip(self):
+        self.timeline.frames=QPixmap(); self.timeline.update()
+        self.strip_pending=(self.source,self.source_signature,self.total) if self.source else None
+        if self.strip_proc.state()!=QProcess.ProcessState.NotRunning:
+            self.strip_proc.kill()
+        else: self.start_strip()
+
+    def start_strip(self):
+        if not self.strip_pending or not shutil.which('ffmpeg') or self.busy() or self.strip_proc.state()!=QProcess.ProcessState.NotRunning: return
+        self.strip_current=self.strip_pending; self.strip_pending=None
+        path,_,duration=self.strip_current; args=['ffmpeg',*filmstrip_args(path,duration)]
+        if shutil.which('nice'): args=['nice','-n','10',*args]
+        self.strip_proc.start(args[0],args[1:]); self.strip_watch.start(30000)
+
+    def strip_done(self,code,status):
+        self.strip_watch.stop(); data=bytes(self.strip_proc.readAllStandardOutput()); self.strip_proc.readAllStandardError(); current=self.strip_current; self.strip_current=None
+        if current and self.source==current[0] and self.source_signature==current[1] and code==0 and status==QProcess.ExitStatus.NormalExit:
+            image=QPixmap()
+            if image.loadFromData(data,'PNG'): self.timeline.frames=image; self.timeline.update()
+        QTimer.singleShot(0,self.start_strip)
+
+    def strip_error(self,error):
+        if error==QProcess.ProcessError.FailedToStart:
+            self.strip_watch.stop(); self.strip_current=None; QTimer.singleShot(0,self.start_strip)
+
+    def stop_strip(self):
+        self.strip_pending=None; self.strip_current=None; self.strip_watch.stop()
+        if self.strip_proc.state()!=QProcess.ProcessState.NotRunning:
+            self.strip_proc.kill(); self.strip_proc.waitForFinished(1000)
+
     def build_tracks(self,titles):
         while self.track_layout.count():
             item=self.track_layout.takeAt(0)
@@ -239,10 +314,10 @@ class Editor(QWidget):
             if storage.signature(p)!=identity: raise ValueError('Clip changed while opening')
             if not v or d<=0: raise ValueError(t('No readable video or duration'))
         except Exception as e: self.note.setText(t('Cannot open clip: ')+str(e)); return False
-        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.build_tracks(titles); self.title.setText(p.name); self.title.setToolTip(str(p)); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False
+        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.build_tracks(titles); self.title.setText(p.name); self.title.setToolTip(str(p)); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False; self.replace_original.setChecked(False); self.zoom_box.blockSignals(True); self.zoom_box.setCurrentIndex(0); self.zoom_box.blockSignals(False); self.timeline.set_view(1,0); self.pan.setValue(0)
         for w in (self.start,self.end):
             w.blockSignals(True); w.setRange(0,d); w.blockSignals(False)
-        self.set_range(0,d); self.position(0); self.progress.setValue(0)
+        self.set_range(0,d); self.position(0); self.progress.setValue(0); self.request_strip()
         if self.player: self.player.stop(); self.player.setSource(QUrl.fromLocalFile(str(p)))
         self.note.setText(clock(d)+' · '+t('{0} audio track(s) · drag the handles to trim.',a)); self.controls(); return True
     def set_range(self,a,b,which=None):
@@ -252,14 +327,16 @@ class Editor(QWidget):
             else: b=min(self.total,a+minimum); a=min(a,b-minimum)
         for w,x in ((self.start,a),(self.end,b)):
             w.blockSignals(True); w.setValue(x); w.blockSignals(False)
-        self.timeline.start=a; self.timeline.end=b; self.timeline.update(); self.selection.setText(t('Selected: {0}',clock(b-a)))
+        self.timeline.start=a; self.timeline.end=b; self.timeline.update(); self.selection.setText(t('Selected: {0}',clock(b-a))); self.update_export_duration()
     def seek(self,t):
         self.previewing=False
         if self.player: self.player.setPosition(round(t*1000))
         self.position(round(t*1000))
     def position(self,ms):
         t=ms/1000; self.timeline.pos=t; self.timeline.update(); self.position_label.setText(clock(t)+' / '+clock(self.total))
-        if self.previewing and t>=self.end.value() and self.player: self.previewing=False; self.player.pause()
+        if self.previewing and t>=self.end.value() and self.player:
+            if self.loop.isChecked(): self.player.setPosition(round(self.start.value()*1000)); self.player.play()
+            else: self.previewing=False; self.player.pause()
     def play_selection(self):
         if not self.player or not self.source or self.busy(): return
         if self.player.playbackState()==QMediaPlayer.PlaybackState.PlayingState: self.player.pause(); return
@@ -269,10 +346,11 @@ class Editor(QWidget):
     def play_state(self,state):
         playing=state==QMediaPlayer.PlaybackState.PlayingState; self.play.setText(t('Pause') if playing else t('Play selection')); decorate(self.play,'pause' if playing else 'play',self.window.button_ink())
     def pause(self):
+        self.previewing=False
         if self.player: self.player.pause()
     def release(self):
         if self.player: self.player.stop(); self.player.setSource(QUrl())
-        self.source=None; self.total=0.; self.tracks=0; self.build_tracks([]); self.timeline.total=0.; self.timeline.update(); self.title.setText(t('No clip selected')); self.sync_selection(); self.controls()
+        self.stop_strip(); self.source=None; self.total=0.; self.tracks=0; self.build_tracks([]); self.timeline.total=0.; self.timeline.frames=QPixmap(); self.timeline.set_view(1,0); self.timeline.update(); self.title.setText(t('No clip selected')); self.sync_selection(); self.controls()
     def choose_music(self):
         p,_=QFileDialog.getOpenFileName(self,t('Choose local music'),str(Path.home()),'Audio (*.mp3 *.wav *.flac *.ogg *.m4a *.aac *.opus);;All files (*)')
         if not p: return
@@ -289,22 +367,20 @@ class Editor(QWidget):
             storage.config_check(self.window.out)
             self.library_id=storage.read_config().get("library_id")
             target=self.source
-            if target.suffix.lower() != ".mp4": raise ValueError(t("In-place editing currently supports MP4 clips only"))
             if b-a<.09: raise ValueError(t('Invalid destination or trim range'))
             if self.source.parent!=self.window.out.resolve(): raise ValueError(t("Select a clip from the current library"))
             if not self.source.is_file() or (self.music and not self.music.is_file()): raise ValueError(t('A source file is missing'))
-            self.copy_export=self.tracks>1
+            self.copy_export=not self.replace_original.isChecked() or self.tracks>1 or target.suffix.lower()!='.mp4'
             if self.copy_export:
-                if QMessageBox.question(self,t('Save mixed copy'),t('Export a mixed copy? The original independent tracks will be preserved.'),QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes: return
                 target=next_export_path(self.window.out,self.source)
             elif QMessageBox.question(self,t("Replace original?"),t('Save changes to {0}? The previous version will be replaced, not kept as a separate clip.',target.name),QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes: return
             self.expected=self.source_signature
             if storage.signature(self.source)!=self.expected: raise ValueError(t('Clip changed since opening; select it again'))
             self.temp=temp_for(storage.staging()/target.name); self.target=target
-            args=export_args(self.source,self.temp,a,b,self.tracks,self.vol.value(),self.music,self.musicvol.value(),[s.value() for s in self.track_sliders] if self.copy_export else None); self.export_length=b-a
+            rate=self.speed.currentData(); args=export_args(self.source,self.temp,a,b,self.tracks,self.vol.value(),self.music,self.musicvol.value(),[s.value() for s in self.track_sliders] if self.tracks>1 else None,speed=rate,aspect=self.aspect.currentData(),quality=self.quality.currentData()); self.export_length=(b-a)/rate
         except Exception as e:
             self.cleanup(); self.note.setText(t('Export: ')+str(e)); return
-        self.pause(); self.cancelled=False; self.buf=''; self.err=''; self.progress.setValue(0); self.controls(); self.note.setText(t('Exporting… original file is safe.')); self.proc.start('ffmpeg',args)
+        self.pause(); self.stop_strip(); self.cancelled=False; self.buf=''; self.err=''; self.progress.setValue(0); self.controls(); self.note.setText(t('Exporting… original file is safe.')); self.proc.start('ffmpeg',args)
     def progress_read(self):
         self.buf+=bytes(self.proc.readAllStandardOutput()).decode(errors='replace'); lines=self.buf.split('\n'); self.buf=lines.pop()
         for line in lines:

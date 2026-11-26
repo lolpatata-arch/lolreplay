@@ -3298,3 +3298,183 @@ _auto_audio_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _auto_audio_rows})
+
+_editor15_rows = [
+  [
+    "Timeline zoom",
+    "Zoom de la línea de tiempo",
+    "Zoom de la timeline",
+    "Zeitleisten-Zoom",
+    "Масштаб шкалы",
+    "Powiększenie osi czasu",
+    "タイムラインのズーム",
+    "时间线缩放",
+    "Zoom timeline"
+  ],
+  [
+    "Timeline scroll",
+    "Desplazar línea de tiempo",
+    "Défilement de la timeline",
+    "Zeitleiste verschieben",
+    "Прокрутка шкалы",
+    "Przewijanie osi czasu",
+    "タイムラインのスクロール",
+    "时间线滚动",
+    "Scorrimento timeline"
+  ],
+  [
+    "Loop selection",
+    "Repetir selección",
+    "Lire la sélection en boucle",
+    "Auswahl wiederholen",
+    "Повтор выделения",
+    "Zapętl zaznaczenie",
+    "選択範囲をループ",
+    "循环播放选区",
+    "Ripeti selezione"
+  ],
+  [
+    "Export format",
+    "Formato de exportación",
+    "Format d’exportation",
+    "Exportformat",
+    "Формат экспорта",
+    "Format eksportu",
+    "書き出し形式",
+    "导出格式",
+    "Formato esportazione"
+  ],
+  [
+    "Original aspect",
+    "Proporción original",
+    "Format d’origine",
+    "Originalseitenverhältnis",
+    "Исходное соотношение",
+    "Oryginalne proporcje",
+    "元のアスペクト比",
+    "原始宽高比",
+    "Proporzioni originali"
+  ],
+  [
+    "Vertical 9:16",
+    "Vertical 9:16",
+    "Vertical 9:16",
+    "Vertikal 9:16",
+    "Вертикальный 9:16",
+    "Pionowy 9:16",
+    "縦長 9:16",
+    "竖屏 9:16",
+    "Verticale 9:16"
+  ],
+  [
+    "Square 1:1",
+    "Cuadrado 1:1",
+    "Carré 1:1",
+    "Quadratisch 1:1",
+    "Квадрат 1:1",
+    "Kwadrat 1:1",
+    "正方形 1:1",
+    "方形 1:1",
+    "Quadrato 1:1"
+  ],
+  [
+    "Export speed",
+    "Velocidad de exportación",
+    "Vitesse d’exportation",
+    "Exportgeschwindigkeit",
+    "Скорость экспорта",
+    "Prędkość eksportu",
+    "書き出し速度",
+    "导出速度",
+    "Velocità esportazione"
+  ],
+  [
+    "Export quality",
+    "Calidad de exportación",
+    "Qualité d’exportation",
+    "Exportqualität",
+    "Качество экспорта",
+    "Jakość eksportu",
+    "書き出し品質",
+    "导出质量",
+    "Qualità esportazione"
+  ],
+  [
+    "Small file",
+    "Archivo ligero",
+    "Petit fichier",
+    "Kleine Datei",
+    "Малый размер",
+    "Mały plik",
+    "小さいファイル",
+    "小文件",
+    "File piccolo"
+  ],
+  [
+    "Balanced quality",
+    "Calidad equilibrada",
+    "Qualité équilibrée",
+    "Ausgewogene Qualität",
+    "Сбалансированное качество",
+    "Zrównoważona jakość",
+    "バランス品質",
+    "均衡质量",
+    "Qualità bilanciata"
+  ],
+  [
+    "High quality",
+    "Alta calidad",
+    "Haute qualité",
+    "Hohe Qualität",
+    "Высокое качество",
+    "Wysoka jakość",
+    "高品質",
+    "高质量",
+    "Alta qualità"
+  ],
+  [
+    "Output duration: {0}",
+    "Duración final: {0}",
+    "Durée finale : {0}",
+    "Ausgabedauer: {0}",
+    "Итоговая длительность: {0}",
+    "Czas wyjściowy: {0}",
+    "出力時間：{0}",
+    "输出时长：{0}",
+    "Durata finale: {0}"
+  ],
+  [
+    "Replace original",
+    "Sustituir original",
+    "Remplacer l’original",
+    "Original ersetzen",
+    "Заменить оригинал",
+    "Zastąp oryginał",
+    "元のファイルを置換",
+    "替换原文件",
+    "Sostituisci originale"
+  ],
+  [
+    "Exports a new copy by default. Multitrack originals are always kept.",
+    "Exporta una copia nueva por defecto. Los originales multipista siempre se conservan.",
+    "Exporte une nouvelle copie par défaut. Les originaux multipistes sont toujours conservés.",
+    "Standardmäßig neue Kopie. Mehrspur-Originale bleiben immer erhalten.",
+    "По умолчанию новая копия. Многодорожечные оригиналы сохраняются.",
+    "Domyślnie nowa kopia. Wielościeżkowe oryginały są zachowywane.",
+    "既定で新規コピーを書き出します。複数トラックの元ファイルは保持されます。",
+    "默认导出新副本。始终保留多音轨原文件。",
+    "Esporta una nuova copia per impostazione predefinita. Gli originali multitraccia vengono conservati."
+  ],
+  [
+    "Export clip",
+    "Exportar clip",
+    "Exporter le clip",
+    "Clip exportieren",
+    "Экспорт клипа",
+    "Eksportuj klip",
+    "クリップを書き出す",
+    "导出片段",
+    "Esporta clip"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _editor15_rows})

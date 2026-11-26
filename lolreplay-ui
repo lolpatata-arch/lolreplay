@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 1.4.0-dev: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.5.0-dev: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import re
@@ -202,7 +202,7 @@ class Window(QMainWindow):
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.4.0-dev','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.5.0-dev','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
         topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
@@ -650,7 +650,7 @@ class Window(QMainWindow):
             row=QHBoxLayout(); self.niri_mode_btn=button(t('Change capture backend'),self.choose_niri_mode); row.addWidget(self.niri_mode_btn); cv.addLayout(row); note=label(t('The global shortcut is managed by your compositor. Applying changes may require a reload.'),'muted'); note.setWordWrap(True); cv.addWidget(note)
         v.addWidget(cp)
         row=self.settings_row(); row.addWidget(label(t('Diagnostics'),'section')); row.addStretch(); row.addWidget(button(t('Open recorder log'),lambda:self.open_file(LOG))); v.addLayout(row); v.addStretch()
-        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); self.update_panel.current.setText('v1.4.0-dev (Git)\n'+self.update_panel.current.text()); v.addWidget(self.update_panel); v.addStretch()
+        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); self.update_panel.current.setText('v1.5.0-dev (Git)\n'+self.update_panel.current.text()); v.addWidget(self.update_panel); v.addStretch()
         # Keep related capture controls first, then interface and keyboard preferences.
         pages=[(tabs.widget(i),self.settings_selector.itemText(i)) for i in range(tabs.count())]
         self.settings_list.clear(); self.settings_selector.clear()
@@ -1133,7 +1133,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.4.0-dev • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.5.0-dev • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1354,7 +1354,7 @@ class Window(QMainWindow):
             event.ignore(); return
         if self.editor.busy():
             self.message.setText(t('Finish or cancel the export before closing.')); event.ignore(); return
-        self.editor.pause()
+        self.editor.pause(); self.editor.stop_strip()
         if self.pending is not None:
             self.message.setText(t('Wait for the current command to finish before closing.')); event.ignore(); return
         try: write_ui({**read_json(UI_CONFIG),'playback_volume':self.playback_volume,'library_sort':self.library_sort})
@@ -1367,4 +1367,4 @@ class Window(QMainWindow):
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.4.0-dev'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.5.0-dev'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())

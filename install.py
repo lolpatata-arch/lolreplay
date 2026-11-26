@@ -111,7 +111,7 @@ def install_locked():
         if shutil.which(executable):
             try: subprocess.run([executable,*args],capture_output=True,timeout=5,check=False)
             except (OSError,subprocess.SubprocessError): pass
-    print('lolreplay 1.4.0-dev installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
+    print('lolreplay 1.5.0-dev installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
 
 def check():
     import lolreplay_compositor as compositor
