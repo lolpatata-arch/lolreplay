@@ -3478,3 +3478,29 @@ _editor15_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _editor15_rows})
+
+_game16_rows = [
+  [
+    "Edit tags",
+    "Editar etiquetas",
+    "Modifier les tags",
+    "Tags bearbeiten",
+    "Изменить теги",
+    "Edytuj tagi",
+    "タグを編集",
+    "编辑标签",
+    "Modifica tag"
+  ],
+  [
+    "Game not detected",
+    "Juego no detectado",
+    "Jeu non détecté",
+    "Spiel nicht erkannt",
+    "Игра не определена",
+    "Nie wykryto gry",
+    "ゲーム未検出",
+    "未检测到游戏",
+    "Gioco non rilevato"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _game16_rows})

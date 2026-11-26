@@ -7,6 +7,8 @@ from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog,QSplitter,QCheckBox)
 import lolreplay_storage as storage
+import lolreplay_library as library
+import sqlite3
 from lolreplay_export import probe, probe_details, export_args, temp_for, next_export_path, filmstrip_args, SPEEDS
 from lolreplay_icons import decorate
 from lolreplay_widgets import SeekSlider, PageScroll, fit_combo
@@ -411,8 +413,11 @@ class Editor(QWidget):
                 if self.window.player and self.window.preview_path==str(target):
                     self.window.player.stop(); self.window.player.setSource(QUrl()); self.window.preview_path=None
                 storage.config_check(target.parent)
+                old_key=library.file_key(self.source)
                 if self.copy_export: storage.publish(self.temp,target,self.library_id)
                 else: storage.replace_clip(self.temp,target,self.expected,self.library_id)
+                try: self.window.library_db.copy_metadata(old_key,library.file_key(target),replace=not self.copy_export)
+                except (OSError,sqlite3.Error): pass
                 self.cleanup(); self.release(); self.remove_music(); self.vol.setValue(100); self.musicvol.setValue(25)
                 self.window.refresh_library(force=True); self.load(str(target)); self.progress.setValue(100); self.note.setText(t('Changes saved: ')+target.name)
         except Exception as e:
