@@ -106,12 +106,21 @@ for locale in LANGUAGES:
     try:
         assert w.settings_stack.count()==11
         assert len(w.dashboard_cards)==4
+        assert w.hub.objectName()=='commandHub' and w.dock.objectName()=='bottomDock'
+        assert len(w.nav)==4 and all(b.parentWidget()==w.dock for b in w.nav)
+        assert w.outer_layout.itemAt(0).widget()==w.hub
+        assert w.outer_layout.itemAt(w.outer_layout.count()-1).layout()==w.dock_row
+        assert w.hub_save.isEnabled()==w.save_btn.isEnabled()
+        assert w.hub_toggle.isEnabled()==(w.stop_btn.isEnabled() if w.active is True else w.start_btn.isEnabled())
+        assert w.hub_save.accessibleName()==w.save_btn.text()
         assert w.dashboard_total.text()==str(len(w.snapshot or []))
         assert w.dashboard_favorites.text()==str(sum(bool(w.metadata_for(key[0])[0]) for key in (w.snapshot or [])))
         assert w.dashboard_history.text()==w.format_duration_label(w.buffer_seconds)
         w.reflow_dashboard(False,False)
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_hero))==(0,0,1,2)
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_gallery))==(2,0,1,3)
+        assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.overview_rail))==(0,2,1,1)
+        assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_session))==(1,0,1,3)
         w.reflow_dashboard(True,True)
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.overview_rail))==(0,0,1,1)
         w.update_layout(force=True)
@@ -157,6 +166,11 @@ for locale in LANGUAGES:
                     assert w.width()<=width+2 and w.height()<=height+2, (locale,scale,width,height,w.size(),index)
                     page=w.stack.currentWidget(); contained(page,w.stack)
                     assert page.width()>0 and page.height()>0
+                    assert w.hub.isVisible() and w.dock.isVisible()
+                    assert w.hub.geometry().bottom()<w.body.geometry().top()
+                    assert w.dock.geometry().top()>w.body.geometry().bottom()
+                    assert sum(b.isChecked() for b in w.nav)==1 and w.nav[index].isChecked()
+                    assert all(b.width()>0 and b.height()>0 for b in w.nav)
                 w.navigate(0); app.processEvents()
                 for card in w.dashboard_cards:
                     assert card.isVisible() and card.width()>0 and card.height()>0
