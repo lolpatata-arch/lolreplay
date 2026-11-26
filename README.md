@@ -4,11 +4,13 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v1.7.0 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v1.7.1 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
 ## Features
+
+- Replay artwork: classic logo, five static logo-based wallpapers, latest clip or a local image. Change in Appearance or right-click the artwork.
 
 - GPU-assisted instant replay, adjustable quality, history and clip duration.
 - Global capture shortcut (F8 by default), configurable internal shortcuts and keyboard navigation.
@@ -44,7 +46,7 @@ Requirements: Linux, Python 3.10+, native GPU Screen Recorder **with `gsr-cli`**
 
 ## Installation
 
-Clone this repository for the v1.7.0 baseline, or download a published release ZIP when available. On Arch, the Qt and FFmpeg dependencies can be installed with:
+Download the published release ZIP or clone the stable main branch. On Arch, the Qt and FFmpeg dependencies can be installed with:
 
 ```sh
 sudo pacman -S --needed pyside6 qt6-wayland qt6-multimedia qt6-multimedia-ffmpeg ffmpeg
@@ -155,6 +157,10 @@ For the release gate, run `python3 -m unittest -v test_responsive` with PySide6 
 Automated tests cover core logic, simulated failures, preferences, translations, shortcuts, installation and FFmpeg operations. They do not replace live testing of Qt, GPU capture, physical disks, microphones and Niri. Please report the distribution, compositor, GPU, version, reproduction steps and relevant redacted diagnostic output. Remove usernames, private paths and other personal information before posting logs.
 
 See [CHANGELOG.md](CHANGELOG.md) for development history. Older instructions there are historical, not installation guidance.
+
+## Release process (maintainers)
+
+After the full tests and desktop smoke tests pass, merge the version into main. Open Actions → Publish release → Run workflow on main, enter the version (for example `1.7.1`), and confirm the tested version. The workflow builds an updater-compatible ZIP, checks its manifest and digest, uploads a draft, verifies the GitHub asset, and only then publishes. It never publishes on ordinary pushes. See `scripts/build_release.py`. If publication fails after creating a draft, inspect it before retrying; no existing release is overwritten. AUR packaging is managed separately.
 
 ## Credits and license
 
