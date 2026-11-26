@@ -4,7 +4,7 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v1.7.0 release candidate · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v1.7.0 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
@@ -33,7 +33,7 @@ CLI alternative: `lolreplay update` lists eligible newer releases. `lolreplay up
 
 | Environment | Status |
 | --- | --- |
-| Arch Linux + Hyprland (AMD) | Live capture confirmed through v1.0.1; v1.1.0 UI awaiting live testing |
+| Arch Linux + Hyprland (AMD) | Maintainer confirmed 71/71 tests on v1.7.0; live feature checks through v1.6; broader v1.7 capture and performance validation ongoing |
 | Debian 13 + Hyprland (Intel) | Live capture and automatic CQP retry confirmed in v1.0.1; responsive UI and editor hotfix confirmed by maintainer on Debian; v1.0.4 library layout fix confirmed by maintainer; v1.1.0 UI awaiting live testing |
 | Niri | Experimental; live capture and global shortcuts not yet verified |
 | Other Linux distributions | May work if prerequisites are available; unverified |
@@ -44,7 +44,7 @@ Requirements: Linux, Python 3.10+, native GPU Screen Recorder **with `gsr-cli`**
 
 ## Installation
 
-Download the release ZIP and extract it, or clone this repository. On Arch, the Qt and FFmpeg dependencies can be installed with:
+Clone this repository for the v1.7.0 baseline, or download a published release ZIP when available. On Arch, the Qt and FFmpeg dependencies can be installed with:
 
 ```sh
 sudo pacman -S --needed pyside6 qt6-wayland qt6-multimedia qt6-multimedia-ffmpeg ffmpeg
@@ -126,9 +126,11 @@ For legacy Hyprlang configuration, use its native syntax instead. For Niri, run 
 2. Press your capture shortcut to save a clip.
 3. Watch, rename or edit it directly from the local library.
 
-Change quality, audio devices and storage while replay is stopped. Closing the UI does not stop the recorder. Esc always exits fullscreen. Editing uses a temporary export and confirmation before replacing the original; **there is no undo after successful replacement**. Preview plays original audio only; music is mixed during export. If an external drive fails, check the status for a recoverable local copy.
+Change quality, audio devices and storage while replay is stopped. Closing the UI does not stop the recorder. Esc always exits fullscreen. Editing exports a new copy by default. Single-track MP4 replacement is optional and requires confirmation; **there is no undo after successful replacement**. Multitrack originals are retained. Preview plays original audio only; music is mixed during export. If an external drive fails, check the status for a recoverable local copy.
 
 Settings includes appearance, language, capture, system, accessibility and keyboard shortcuts. English, Spanish (Spain), French, German, Russian, Polish, Japanese, Simplified Chinese and Italian are available. Reopen the UI to apply a language change. Technical logs and some platform dialogues may remain untranslated. Larger controls or longer translations may require a wider window. Screen-reader compatibility has not been validated.
+
+To separate application audio automatically, select automatic application tracks in audio settings before starting replay. Applications opened afterwards share the catch-all track until the next replay restart. Game classification uses local Steam metadata and recognized window classes; unknown or older clips may remain unclassified.
 
 ### CLI and diagnostics
 
