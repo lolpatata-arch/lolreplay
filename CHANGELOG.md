@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.8.0 — Shadow Interface (development)
+## 1.8.0 — Shadow Interface
 
 - Floating shell-inspired panels and navigation on larger windows, with Crystal, Minimal and Classic styles; compact layouts retain their tested spacing targets.
 - Obsidian, Arctic, Ember and Rose Quartz palettes in addition to existing themes and custom colors. New installs default to Obsidian; existing theme choices preserved.
 - Adjustable corners, density, accent lighting, icon-only navigation, wallpaper scaling/dimming and optional caption overlay. Preferences stored locally.
 - Refined library cards, editor timeline and updater presentation. No new dependencies, animations or compositor-specific blur; Crystal is a static gradient style.
-- Capture and export behavior unchanged. Automated and live validation pending.
+- Capture and export behavior unchanged. Maintainer reports all automated tests passing on Arch Linux; live visual and cross-distribution validation of 1.8.0 remain pending.
 
 ## 1.7.2 — Interface polish
 
