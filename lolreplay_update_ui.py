@@ -11,14 +11,14 @@ from lolreplay_widgets import fit_combo
 class UpdatePanel(QWidget):
     def __init__(self,window):
         super().__init__(window); self.window=window; self.mode=None; self.items=[]; self.installed=False
-        layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0)
-        self.current=QLabel(t('Installed version: {0}',VERSION)); self.current.setWordWrap(True); layout.addWidget(self.current)
+        self.setObjectName('updatePanel'); layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0); layout.setSpacing(10)
+        self.current=QLabel(t('Installed version: {0}',VERSION)); self.current.setObjectName('section'); self.current.setWordWrap(True); layout.addWidget(self.current)
         info=QLabel(t('Updates are manual. Nothing is downloaded or installed without your approval.')); info.setWordWrap(True); layout.addWidget(info)
         self.experimental=QCheckBox(t('Include preview releases')); layout.addWidget(self.experimental)
         self.check=QPushButton(t('Check for updates')); self.check.clicked.connect(self.check_updates); layout.addWidget(self.check)
         self.versions=fit_combo(QComboBox()); self.versions.setAccessibleName(t('Available versions')); self.versions.currentIndexChanged.connect(self.select); layout.addWidget(self.versions)
         self.notes=QPlainTextEdit(); self.notes.setReadOnly(True); self.notes.setMinimumHeight(90); self.notes.setMaximumHeight(210); self.notes.setAccessibleName(t('Release notes')); layout.addWidget(self.notes)
-        self.apply=QPushButton(t('Install selected version')); self.apply.clicked.connect(self.confirm); self.apply.setEnabled(False); layout.addWidget(self.apply)
+        self.apply=QPushButton(t('Install selected version')); self.apply.setObjectName('primary'); self.apply.clicked.connect(self.confirm); self.apply.setEnabled(False); layout.addWidget(self.apply)
         self.status=QLabel(''); self.status.setTextFormat(Qt.TextFormat.PlainText); self.status.setWordWrap(True); self.status.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); layout.addWidget(self.status)
         self.process=QProcess(self); self.process.finished.connect(self.finished); self.process.errorOccurred.connect(self.error); self.experimental.toggled.connect(self.clear)
     def busy(self): return self.mode is not None

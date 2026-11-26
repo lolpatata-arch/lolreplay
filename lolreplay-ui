@@ -6,6 +6,7 @@ import time
 import re
 import lolreplay_preferences as prefs
 import lolreplay_backgrounds as backgrounds
+import lolreplay_visual as visual
 import lolreplay_shortcuts as keys
 import os
 from lolreplay_i18n import t, clip_count, LANGUAGES, set_language, language
@@ -49,7 +50,11 @@ THEMES = {'Crimson Red': ('#101012','#17171a','#2c2c31','#c91e35','#ff4055'),
           'AMOLED': ('#050505','#101010','#242424','#bdbdbd','#eeeeee'),
           'Midnight Blue': ('#0c111c','#141d2c','#243247','#528dff','#91b6ff'),
           'Jade': ('#0b1412','#14211d','#283d35','#248a70','#68d8b0'),
-          'Violet': ('#13101a','#201a29','#3a3048','#8250ce','#c5a0ff')}
+          'Violet': ('#13101a','#201a29','#3a3048','#8250ce','#c5a0ff'),
+          'Obsidian': ('#080809','#121214','#29252a','#d7193c','#ff526b'),
+          'Arctic': ('#0a1016','#121e29','#2a3d4c','#5ecde8','#9ae8fa'),
+          'Ember': ('#130b09','#211412','#422c26','#e97640','#ffb18a'),
+          'Rose Quartz': ('#170e15','#251923','#432e40','#cb6da5','#f5b2d7')}
 DURATIONS = [(30,'30 seconds'),(60,'1 minute'),(300,'5 minutes'),(1200,'20 minutes')]
 
 
@@ -89,11 +94,12 @@ class ClipDelegate(QStyledItemDelegate):
         hovered=bool(option.state & QStyle.StateFlag.State_MouseOver)
         outline=QColor(accent if selected else border)
         painter.setPen(QPen(outline,1.5 if selected else 1))
-        painter.setBrush(QColor(panel).lighter(112 if hovered else 100)); painter.drawRoundedRect(QRectF(r),9,9)
+        design=visual.profile(self.window.prefs); radius=min(14,design.radius)
+        painter.setBrush(QColor(panel).lighter(122 if hovered else 108)); painter.drawRoundedRect(QRectF(r),radius,radius)
         if selected:
             painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(accent)); painter.drawRoundedRect(QRectF(r.x()+2,r.y()+9,3,max(1,r.height()-18)),1.5,1.5)
         a=QRect(r.x()+3,r.y()+3,r.width()-6,int((r.width()-6)*9/16))
-        path=QPainterPath(); path.addRoundedRect(QRectF(a),7,7)
+        path=QPainterPath(); path.addRoundedRect(QRectF(a),max(3,radius-3),max(3,radius-3))
         painter.save(); painter.setClipPath(path); painter.fillRect(a,QColor('#09090b'))
         pix=index.data(Qt.ItemDataRole.DecorationRole)
         if isinstance(pix,QIcon):
@@ -102,7 +108,7 @@ class ClipDelegate(QStyledItemDelegate):
                 if image.width()>32:
                     image=image.scaled(a.size(),Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
                 painter.drawPixmap(a.x()+(a.width()-image.width())//2,a.y()+(a.height()-image.height())//2,image)
-        if hovered or selected:
+        if (hovered or selected) and self.window.prefs['accent_glow']:
             shade=QLinearGradient(0,a.top(),0,a.bottom()); shade.setColorAt(0,QColor(0,0,0,0)); shade.setColorAt(1,QColor(0,0,0,100)); painter.fillRect(a,QBrush(shade))
         painter.restore()
         game=index.data(Qt.ItemDataRole.UserRole+2)
@@ -143,12 +149,22 @@ class Artwork(QWidget):
         super().mouseReleaseEvent(event)
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        r=self.rect(); clip=QPainterPath(); clip.addRoundedRect(QRectF(r),10,10); p.setClipPath(clip)
+        r=self.rect(); design=visual.profile(self.window.prefs); clip=QPainterPath(); clip.addRoundedRect(QRectF(r),design.radius,design.radius); p.setClipPath(clip)
         bg,panel,border,accent,bright=THEMES[self.window.theme]
         selected=self.selected_art()
         if selected is not None and not selected.isNull():
-            backgrounds.cover(p,r,selected)
-            if self.window.replay_background['mode']=='image': p.fillRect(r,QColor(0,0,0,35))
+            p.fillRect(r,QColor(bg))
+            if self.window.prefs['wallpaper_fit']=='fit':
+                target=selected.size().scaled(r.size(),Qt.AspectRatioMode.KeepAspectRatio)
+                p.drawPixmap(QRect((r.width()-target.width())//2,(r.height()-target.height())//2,target.width(),target.height()),selected)
+            else: backgrounds.cover(p,r,selected)
+            dim=self.window.prefs['wallpaper_dim']
+            if dim: p.fillRect(r,QColor(0,0,0,round(255*dim/100)))
+            if self.window.prefs['hero_overlay']:
+                shade=QLinearGradient(0,r.height()*.55,0,r.height()); shade.setColorAt(0,QColor(0,0,0,0)); shade.setColorAt(1,QColor(0,0,0,195)); p.fillRect(r,QBrush(shade))
+                f=QFont(self.font()); f.setPixelSize(14); f.setWeight(QFont.Weight.DemiBold); p.setFont(f); p.setPen(QColor('#ffffff'))
+                text=t(backgrounds.LABELS[self.window.replay_background['mode']])
+                p.drawText(QRect(18,max(0,r.height()-40),max(1,r.width()-36),30),Qt.AlignmentFlag.AlignVCenter,p.fontMetrics().elidedText(text,Qt.TextElideMode.ElideRight,max(1,r.width()-36)))
         else:
             w=r.width(); h=r.height()
             # A static, theme-aware recording instrument, not a decorative animation.
@@ -173,6 +189,7 @@ class Artwork(QWidget):
             f.setPixelSize(11); f.setWeight(QFont.Weight.Normal); p.setFont(f); p.setPen(QColor('#b5b5bf'))
             hint=(t('Save {0}',self.window.format_duration_label(self.window.duration))+' · '+(self.window.global_key or '—')) if active is True else t('Start replay to capture.')
             p.drawText(QRect(x,h-32,tw,24),Qt.AlignmentFlag.AlignVCenter,p.fontMetrics().elidedText(hint,Qt.TextElideMode.ElideRight,tw))
+        p.setClipping(False); p.setBrush(Qt.BrushStyle.NoBrush); p.setPen(QPen(QColor(border),1)); p.drawRoundedRect(QRectF(r.adjusted(1,1,-1,-1)),design.radius,design.radius)
         p.end()
 
 class ReplayWindow(QWidget):
@@ -205,7 +222,7 @@ class Window(QMainWindow):
         self.logo=QIcon(str(icon)); self.player=None; self.preview_path=None; self.recent_buttons=[]
         self.setWindowIcon(QIcon(str(icon)))
         self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
-        preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Crimson Red'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
+        preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Obsidian'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
         self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences'))
         raw_volume=preferences.get('playback_volume',45)
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
@@ -222,7 +239,7 @@ class Window(QMainWindow):
         self.probe=QProcess(self); self.probe.finished.connect(self.duration_done); self.probe.errorOccurred.connect(self.duration_error)
         self.probe_watch=QTimer(self); self.probe_watch.setSingleShot(True); self.probe_watch.timeout.connect(self.probe.kill)
         self.thumb_watch=QTimer(self); self.thumb_watch.setSingleShot(True); self.thumb_watch.timeout.connect(self.thumb.kill)
-        root=QWidget(); self.setCentralWidget(root); outer=QHBoxLayout(root); outer.setContentsMargins(0,0,0,0); outer.setSpacing(0)
+        root=QWidget(); root.setObjectName('shellRoot'); self.setCentralWidget(root); outer=QHBoxLayout(root); self.outer_layout=outer; outer.setContentsMargins(0,0,0,0); outer.setSpacing(0)
         sidebar=QFrame(); sidebar.setObjectName('sidebar'); self.sidebar=sidebar; sidebar.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding); side=QVBoxLayout(sidebar); self.side_layout=side; side.setContentsMargins(14,23,14,18); side.setSpacing(4)
         brandrow=QHBoxLayout(); brandrow.setSpacing(10); mark=QLabel(); mark.setPixmap(self.logo.pixmap(QSize(40,40))); brandrow.addWidget(mark); brand=QVBoxLayout(); brand.setSpacing(1); self.brand_name=label('lolreplay','brand'); brand.addWidget(self.brand_name); self.brand_meta=label('local • wayland','muted'); brand.addWidget(self.brand_meta);  brandrow.addLayout(brand); brandrow.addStretch(); side.addLayout(brandrow); side.addSpacing(18)
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
@@ -230,7 +247,7 @@ class Window(QMainWindow):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
         side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.2','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
-        topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(8,8); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
+        topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); self.top_layout=top; top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(8,8); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setObjectName('footerMessage'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
@@ -698,7 +715,11 @@ class Window(QMainWindow):
     def background_preview_pix(self):
         pix=QPixmap(320,120); pix.fill(QColor('#0b0b0d')); p=QPainter(pix); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         selected=self.art.selected_art()
-        if selected is not None and not selected.isNull(): backgrounds.cover(p,pix.rect(),selected)
+        if selected is not None and not selected.isNull():
+            if self.prefs['wallpaper_fit']=='fit':
+                target=selected.size().scaled(pix.size(),Qt.AspectRatioMode.KeepAspectRatio); p.drawPixmap(QRect((320-target.width())//2,(120-target.height())//2,target.width(),target.height()),selected)
+            else: backgrounds.cover(p,pix.rect(),selected)
+            if self.prefs['wallpaper_dim']: p.fillRect(pix.rect(),QColor(0,0,0,round(255*self.prefs['wallpaper_dim']/100)))
         else:
             logo=self.logo.pixmap(QSize(92,92)); p.drawPixmap((320-logo.width())//2,(120-logo.height())//2,logo)
         p.end(); return pix
@@ -711,6 +732,11 @@ class Window(QMainWindow):
             if not pix.isNull(): self.save_background(mode,self.replay_background['path'],pix); return
         self.choose_background(mode)
         self.sync_background_controls()
+
+    def open_visual_settings(self):
+        for index in range(self.settings_list.count()):
+            if self.settings_list.item(index).text()==t('Display'):
+                self.select_settings(index); return
 
     def build_settings(self):
         v=self.page(t('Settings'),'',scroll=False)
@@ -732,6 +758,7 @@ class Window(QMainWindow):
             self.theme_samples[name]=(sample,nav,line,block)
             choose=button(name,lambda checked=False,name=name:self.set_theme(name),'duration'); choose.setCheckable(True); choose.setChecked(name==self.theme); self.theme_buttons[name]=choose; theme_layout.addWidget(choose); self.theme_tiles.append(tile); choices.addWidget(tile,i//3,i%3)
         v.addLayout(choices)
+        v.addWidget(decorate(button(t('Visual design'),self.open_visual_settings,'quiet'),'settings'))
         wallpaper=panel(); wl=QVBoxLayout(wallpaper); wl.setContentsMargins(14,12,14,12)
         wl.addWidget(label(t('Replay background'),'section')); self.background_choice=fit_combo(QComboBox()); self.background_choice.setAccessibleName(t('Replay background'))
         for mode in backgrounds.MODES: self.background_choice.addItem(t(backgrounds.LABELS[mode]),mode)
@@ -790,6 +817,15 @@ class Window(QMainWindow):
         choice('text_scale','Text size',[(100,'100%'),(110,'110%'),(120,'120%')])
         toggle('high_contrast','High contrast text and borders'); toggle('strong_focus','Visible keyboard focus'); toggle('large_targets','Larger controls')
         choice('tile_size','Clip thumbnail size',[('compact','Compact'),('normal','Normal'),('large','Large')])
+        v.addWidget(label(t('Visual design'),'section'))
+        choice('visual_style','Interface style',[('shell','Shadow Shell'),('glass','Crystal'),('minimal','Minimal'),('classic','Classic')])
+        choice('corner_style','Corner style',[('auto','Automatic'),('sharp','Sharp'),('rounded','Rounded'),('pill','Soft')])
+        choice('visual_density','Layout density',[('tight','Compact'),('balanced','Normal'),('airy','Spacious')])
+        toggle('accent_glow','Accent lighting'); toggle('icon_navigation','Icon-only navigation')
+        v.addWidget(label(t('Replay background'),'section'))
+        choice('wallpaper_dim','Wallpaper darkness',[(0,'0%'),(15,'15%'),(30,'30%'),(50,'50%')])
+        choice('wallpaper_fit','Wallpaper scaling',[('fill','Fill'),('fit','Fit')])
+        toggle('hero_overlay','Wallpaper caption overlay')
         v.addStretch(); v=self.settings_tab(tabs,t('Playback'))
         toggle('single_click_play','Play clips with a single click'); toggle('video_click','Click video to play or pause'); toggle('loop_playback','Loop library playback')
         choice('playback_speed','Playback speed',[(50,'0.5×'),(75,'0.75×'),(100,'1×'),(125,'1.25×'),(150,'1.5×'),(200,'2×')])
@@ -824,6 +860,7 @@ class Window(QMainWindow):
 
     def apply_preferences(self,refresh=True):
         self.apply_theme()
+        self.sync_background_controls()
         for sc in self.shortcuts: sc.setEnabled(self.prefs['keyboard_shortcuts'])
         if self.player:
             self.video.setToolTip(t('Click to play or pause') if self.prefs['video_click'] else '')
@@ -976,19 +1013,25 @@ class Window(QMainWindow):
         compact,narrow,settings_compact,row_compact=prefs.layout_mode(self.width(),self.height(),self.prefs['text_scale'])
         tiny=self.width()/scale<700
         # Use the usable workspace, not the physical monitor resolution.
-        side_width=round(62*scale) if compact else max(round(188*scale),max(b.fontMetrics().horizontalAdvance(name) for b,name in zip(self.nav,self.nav_names))+78)
-        content_width=max(1,self.width()-side_width-(24 if compact else 56))
+        icon_nav=compact or self.prefs['icon_navigation']
+        design=visual.profile(self.prefs); floating=design.floating and not compact
+        gap,hpad,vpad=visual.spacing(self.prefs,compact)
+        side_width=round(62*scale) if icon_nav else max(round(188*scale),max(b.fontMetrics().horizontalAdvance(name) for b,name in zip(self.nav,self.nav_names))+78)
+        content_width=max(1,self.width()-side_width-2*hpad-(30 if floating else 0))
         content_height=max(1,self.height()-(110 if compact else 140))
         stacked=prefs.media_stacked(content_width,content_height,self.prefs['text_scale'])
-        mode=(compact,narrow,settings_compact,row_compact,scale,tiny,stacked)
+        mode=(compact,narrow,settings_compact,row_compact,scale,tiny,stacked,icon_nav,floating,gap,hpad,vpad)
         if mode==self._layout_mode and not force: return
         previous=self._layout_mode; self._layout_mode=mode
-        for b,name in zip(self.nav,self.nav_names): b.setText('' if compact else name)
-        for w in (self.brand_name,self.brand_meta,self.footer_label,self.footer_meta,self.side_rule): w.setVisible(not compact)
-        self.side_layout.setContentsMargins(8,12,8,8) if compact else self.side_layout.setContentsMargins(14,23,14,18)
+        for b,name in zip(self.nav,self.nav_names): b.setText('' if icon_nav else name)
+        for w in (self.brand_name,self.brand_meta,self.footer_label,self.footer_meta,self.side_rule): w.setVisible(not icon_nav)
+        self.side_layout.setContentsMargins(8,12,8,8) if icon_nav else self.side_layout.setContentsMargins(14,23,14,18)
+        self.outer_layout.setContentsMargins(10,10,10,10) if floating else self.outer_layout.setContentsMargins(0,0,0,0)
+        self.outer_layout.setSpacing(10 if floating else 0)
+        self.top_layout.setContentsMargins(10,3,10,5) if floating else self.top_layout.setContentsMargins(0,3,0,9)
         self.sidebar.setFixedWidth(side_width)
-        self.body_layout.setContentsMargins(12,8,12,8) if compact else self.body_layout.setContentsMargins(28,14,28,12)
-        self.body_layout.setSpacing(8 if compact else 15)
+        self.body_layout.setContentsMargins(hpad,vpad,hpad,8 if compact else 12)
+        self.body_layout.setSpacing(gap)
         self.breadcrumb.setVisible(not narrow); self.top_duration.setVisible(not narrow)
         self.state.setWordWrap(narrow)
         direction=QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
@@ -1177,6 +1220,8 @@ class Window(QMainWindow):
         QProgressBar,QProgressBar::chunk {{border-radius:3px;}}
         QMenu {{border-radius:6px;}}
         '''
+        if self.prefs['visual_style']!='classic':
+            stylesheet+=visual.chrome(self.prefs,bg,panelbg,border,accent,bright,contrast,QColor(panelbg).lighter(124).name(),QColor(bg).darker(118).name())
         scale=self.prefs['text_scale']/100
         stylesheet=re.sub(r'font-size:(\d+)px',lambda m:f'font-size:{round(int(m[1])*scale)}px',stylesheet)
         if self.prefs['high_contrast']:

@@ -17,6 +17,14 @@ OPTIONS = {
     'refresh_ms': (2500, 5000, 10000),
     'background_refresh': (False, True),
     'close_to_tray': (False, True),
+    'visual_style': ('shell','glass','minimal','classic'),
+    'corner_style': ('auto','sharp','rounded','pill'),
+    'visual_density': ('balanced','tight','airy'),
+    'accent_glow': (True,False),
+    'icon_navigation': (False,True),
+    'wallpaper_dim': (0,15,30,50),
+    'wallpaper_fit': ('fill','fit'),
+    'hero_overlay': (False,True),
 }
 DEFAULTS = {key: values[0] for key, values in OPTIONS.items()}
 

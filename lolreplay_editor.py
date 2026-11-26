@@ -103,7 +103,7 @@ class Timeline(QWidget):
         self.zoom=max(1,zoom); self.offset=max(0.,min(self.total-self.span(),position)); self.update()
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); width=max(1,self.width()-24)
-        strip=QRectF(12,23,width,48); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(strip,3,3)
+        strip=QRectF(12,23,width,48); p.setPen(Qt.PenStyle.NoPen); p.setBrush(self.palette().mid().color()); p.drawRoundedRect(QRectF(3,3,max(1,self.width()-6),98),9,9); p.setBrush(self.palette().base().color()); p.drawRoundedRect(strip,6,6)
         a,b=self.to_x(self.start),self.to_x(self.end)
         if self.total:
             accent=self.palette().highlight().color() if not hasattr(self,'accent') else QColor(self.accent)
@@ -117,7 +117,7 @@ class Timeline(QWidget):
             p.fillRect(QRectF(max(12,b),23,max(0,12+width-max(12,b)),48),QColor(0,0,0,155))
             left=max(12,a); right=min(12+width,b)
             if right>left:
-                p.setPen(QPen(accent,2)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawRect(QRectF(left,24,right-left,46))
+                p.setPen(QPen(accent,2)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawRoundedRect(QRectF(left,24,right-left,46),4,4)
             p.restore()
             p.setPen(QPen(QColor('#a6a6b2'),1))
             for i in range(21):
