@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 1.0.2 - a small, local replay controller for GPU Screen Recorder.
+"""lolreplay 1.0.3 - a small, local replay controller for GPU Screen Recorder.
 
 Not affiliated with Medal.tv or GPU Screen Recorder.
 """
@@ -246,7 +246,7 @@ def stop():
 
 
 def doctor(cfg):
-    print("=== LOLREPLAY 1.0.2 / DIAGNÓSTICO ===")
+    print("=== LOLREPLAY 1.0.3 / DIAGNÓSTICO ===")
     print("Compositor:", compositor.detect())
     print("Capture:", compositor.capture(cfg))
     print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
@@ -301,7 +301,7 @@ def temporary_bind():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="lolreplay 1.0.2 - Replay local para Hyprland y Niri")
+    parser = argparse.ArgumentParser(description="lolreplay 1.0.3 - Replay local para Hyprland y Niri")
     sub = parser.add_subparsers(dest="command", required=True)
     for cmd in ("start", "stop", "status", "doctor", "bind-temporary", "config"):
         sub.add_parser(cmd)

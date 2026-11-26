@@ -33,13 +33,22 @@ class ResponsiveTests(unittest.TestCase):
             self.assertNotIn('self.seek.sliderMoved.connect(',text)
         self.assertIn("'lolreplay_widgets.py'",(ROOT/'install.py').read_text())
 
+    def test_editor_scroll_boundaries(self):
+        ui=(ROOT/'lolreplay-ui').read_text()
+        editor=(ROOT/'lolreplay_editor.py').read_text()
+        self.assertIn("self.page(t('Editor'),'',scroll=False)",ui)
+        self.assertIn('self.trim_scroll=PageScroll(trim)',editor)
+        self.assertIn('self.rail=PageScroll(rail)',editor)
+        self.assertIn('l.addWidget(self.video,3)',editor)
+        self.assertNotIn('trim_layout.addWidget(self.video',editor)
+
     @unittest.skipUnless(importlib.util.find_spec('PySide6'), 'PySide6 not installed; run on a desktop with Qt')
     def test_qt_offscreen(self):
         # Use a separate process and temporary home; do not touch the user's library.
         script = r'''
 import importlib.machinery, importlib.util
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QScrollArea
 from PySide6.QtTest import QTest
 from lolreplay_widgets import SeekSlider
 from lolreplay_i18n import set_language
@@ -61,6 +70,15 @@ for locale in ('en_US','es_ES','de_DE','ja_JP'):
         w.resize(width,height); app.processEvents()
         for index in range(4):
             w.navigate(index); app.processEvents()
+        w.navigate(2); app.processEvents()
+        if w.editor.player:
+            ancestor=w.editor.video.parentWidget()
+            while ancestor is not None:
+                assert not isinstance(ancestor,QScrollArea), 'Native video inside a scroll area'
+                ancestor=ancestor.parentWidget()
+            assert w.editor.video.isVisible()
+        assert w.editor.trim_scroll.isVisible() and w.editor.rail.isVisible()
+        w.navigate(3); app.processEvents()
         w.select_settings(7); app.processEvents()
         assert w.settings_stack.currentIndex()==7
         if width==800: assert w.library_split.orientation()==Qt.Orientation.Vertical

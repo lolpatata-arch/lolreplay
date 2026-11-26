@@ -15,7 +15,7 @@ class UIContractTests(unittest.TestCase):
             self.assertTrue(callable(getattr(compositor,name,None)),name)
 
     def test_release_version(self):
-        self.assertIn("setApplicationVersion('1.0.2')",(ROOT/'lolreplay-ui').read_text())
-        self.assertIn("print('lolreplay 1.0.2')",(ROOT/'lolreplay').read_text())
+        self.assertIn("setApplicationVersion('1.0.3')",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("print('lolreplay 1.0.3')",(ROOT/'lolreplay').read_text())
 
 if __name__=='__main__': unittest.main()

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3 — Editor layout hotfix
+
+- Keep the native editor video surface outside scroll areas; scroll trim, audio and export controls separately.
+- Preserve the responsive layout and direct seeking from 1.0.2.
+- No functional recording, audio routing, storage or export engine changes.
+- Editor layout fix confirmed by the maintainer on Debian 13 / Hyprland; Arch UI retest pending.
+
 ## 1.0.2 — Responsive desktop
 
 - Adapt to logical window size and accessibility scaling; compact navigation, scrollable workspaces and stacked panels on narrow windows.
