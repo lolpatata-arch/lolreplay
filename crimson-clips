@@ -12,6 +12,9 @@ import lolreplay_performance as perf
 import lolreplay_audio as audio
 import lolreplay_compositor as compositor
 import lolreplay_storage as storage
+import lolreplay_games as games
+import lolreplay_library as library
+import sqlite3
 import datetime
 import json
 import os
@@ -196,6 +199,9 @@ def start(cfg):
                     raise RuntimeError(f"El grabador terminó (código {p.returncode}). Lee: {LOG}")
                 if is_running():
                     if mic_device: audio.watch(p.pid)
+                    if type(p.pid) is int:
+                        try: games.watch(p.pid)
+                        except (OSError,RuntimeError,subprocess.SubprocessError) as exc: print('Game detection unavailable:',exc,flush=True)
                     print(f"✅ Replay activo · {cfg['buffer_seconds']} s de búfer · {cfg['fps']} FPS · {rate.upper() if rate == 'cbr' else 'CQP'}")
                     print(f"📁 Clips en: {out}")
                     print(f"🎙️ Micro: {mic_device if mic_device else 'desactivado'}")
@@ -213,12 +219,19 @@ def start(cfg):
         raise
 
 
+def remember_game(path,game):
+    if not game: return
+    try: library.Library(library.default_path()).assign_game(path,game)
+    except (OSError,sqlite3.Error,ValueError) as exc: print("Game metadata unavailable:",exc,file=sys.stderr)
+
+
 def save(cfg, seconds):
     if not is_running():
         raise RuntimeError("El replay no está activo. Ejecuta: crimson-clips start")
     seconds = validate_duration(cfg, int(cfg["save_seconds"]) if seconds is None else seconds)
     # If the registered disk is absent, still save the replay to local recovery.
     if not cfg.get("library_id"): output_check(cfg)
+    game=games.recent_game(seconds)
     clip = ipc("save-replay", seconds, checked=True)
     if cfg.get("library_id"):
         source=Path(clip).resolve()
@@ -229,12 +242,15 @@ def save(cfg, seconds):
             if target.exists(): target=out/(source.stem+"-"+__import__("uuid").uuid4().hex[:8]+source.suffix)
             storage.publish(source,target,cfg["library_id"]); clip=str(target)
         except (OSError,ValueError,RuntimeError) as exc:
+            remember_game(source,game)
             alert("lolreplay: recovered locally",str(source))
             print(f"Disk unavailable or transfer failed: {exc}\nClip retained locally: {source}")
             return 0
     if not clip or not Path(clip).is_file() or Path(clip).stat().st_size<=0:
         raise RuntimeError('No se ha confirmado un archivo de vídeo válido. Revisa el log y la carpeta de clips.')
+    remember_game(Path(clip),game)
     print(f"🎬 Clip guardado: {clip}")
+    if game: print("🎮 Game:",game)
     alert("Crimson Clips", f"Clip de {seconds} segundos guardado")
     return 0
 

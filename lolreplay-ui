@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 1.5.0-dev: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.6.0-dev: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import re
@@ -16,6 +16,7 @@ from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
 from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo
 import lolreplay_storage as storage
 import lolreplay_library as library
+import lolreplay_games as games
 import sqlite3
 import lolreplay_audio as audio
 import lolreplay_drives as drives
@@ -96,6 +97,12 @@ class ClipDelegate(QStyledItemDelegate):
                     image=image.scaled(a.size(),Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
                 painter.drawPixmap(a.x()+(a.width()-image.width())//2,a.y()+(a.height()-image.height())//2,image)
         painter.restore()
+        game=index.data(Qt.ItemDataRole.UserRole+2)
+        if game:
+            font=QFont(option.font); font.setPixelSize(round(11*self.window.prefs['text_scale']/100)); font.setWeight(QFont.Weight.DemiBold); painter.setFont(font)
+            tag=painter.fontMetrics().elidedText(str(game),Qt.TextElideMode.ElideRight,max(1,a.width()-20)); tw=min(a.width()-8,painter.fontMetrics().horizontalAdvance(tag)+12); th=painter.fontMetrics().height()+6
+            painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(15,15,18,220)); painter.drawRoundedRect(QRectF(a.left()+4,a.bottom()-th-3,tw,th),4,4)
+            painter.setPen(QColor('#ffffff')); painter.drawText(QRect(a.left()+10,a.bottom()-th-3,max(1,tw-12),th),Qt.AlignmentFlag.AlignVCenter|Qt.AlignmentFlag.AlignLeft,tag)
         if index.data(Qt.ItemDataRole.UserRole+1):
             painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor('#161619')); painter.drawRoundedRect(QRectF(a.right()-32,a.top()+5,27,25),5,5); painter.setPen(QColor('#ffd45a')); star=QFont(option.font); star.setPixelSize(18); painter.setFont(star); painter.drawText(QRect(a.right()-32,a.top()+5,27,25),Qt.AlignmentFlag.AlignCenter,'★')
         painter.setPen(QColor('#f2f0f3')); f=QFont(option.font); f.setPixelSize(round(13*self.window.prefs['text_scale']/100)); f.setWeight(QFont.Weight.DemiBold); painter.setFont(f)
@@ -185,7 +192,7 @@ class Window(QMainWindow):
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
         if self.library_sort not in ('newest','oldest','largest','name'): self.library_sort='newest'
-        self.library_db=library.Library(Path(os.environ.get('XDG_STATE_HOME',str(HOME/'.local/state')))/'lolreplay/library.sqlite3'); self.clip_metadata={}; self.library_keys={}; self.durations={}; self.probe_queue=[]; self.probe_current=None; self.probe_failed=set()
+        self.library_db=library.Library(library.default_path()); self.metadata_stamp=None; self.clip_metadata={}; self.library_keys={}; self.durations={}; self.probe_queue=[]; self.probe_current=None; self.probe_failed=set()
         self.update_custom_palette()
         if not isinstance(self.theme,str) or self.theme not in THEMES: self.theme='Crimson Red'
         self.action=QProcess(self); self.action.finished.connect(self.action_done); self.action.errorOccurred.connect(self.action_error)
@@ -202,7 +209,7 @@ class Window(QMainWindow):
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.5.0-dev','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.6.0-dev','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
         topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
@@ -256,7 +263,7 @@ class Window(QMainWindow):
         self.replay_window=ReplayWindow(self); c.addWidget(self.replay_window)
         self.window_caption=label('','muted'); self.window_caption.setWordWrap(True); c.addWidget(self.window_caption); self.window_hint=label('','muted'); c.addWidget(self.window_hint)
         save_row=QHBoxLayout(); self.save_btn=decorate(button(t('Save clip'),lambda:self.run('save'),'primary'),'save','#ffffff'); self.save_btn.setToolTip(self.hotkey_text('Save the selected replay duration (F8)')); save_row.addWidget(self.save_btn,1); self.save_key=label(self.global_key or '—','key'); save_row.addWidget(self.save_key); c.addLayout(save_row)
-        c.addWidget(self.rule()); c.addWidget(label(t('Capture'),'section')); self.capture_specs=label('H.264  ·  60 FPS  ·  GPU','muted'); c.addWidget(self.capture_specs); self.capture_audio=label(t('System audio'),'muted'); c.addWidget(self.capture_audio)
+        c.addWidget(self.rule()); c.addWidget(label(t('Capture'),'section')); self.capture_specs=label('H.264  ·  60 FPS  ·  GPU','muted'); c.addWidget(self.capture_specs); self.capture_audio=label(t('System audio'),'muted'); c.addWidget(self.capture_audio); self.game_status=label('','muted'); self.game_status.setWordWrap(True); c.addWidget(self.game_status)
         c.addStretch(); c.addWidget(label(t('STORAGE'),'eyebrow')); self.disk=label(t('Storage —'),'stat'); c.addWidget(self.disk); self.storage_bar=QProgressBar(); self.storage_bar.setRange(0,1000); self.storage_bar.setTextVisible(False); self.storage_bar.setFixedHeight(5); c.addWidget(self.storage_bar)
         c.addWidget(button(t('Open clips folder'),self.open_folder,'quiet')); workspace.addWidget(rail); v.addLayout(workspace,1)
 
@@ -309,7 +316,7 @@ class Window(QMainWindow):
             r=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.player_controls=r; playback=QHBoxLayout(); audio_row=QHBoxLayout(); self.play_btn=decorate(button(t('Play'),self.play,'primary'),'play','#ffffff'); playback.addWidget(self.play_btn); self.time_label=label('0:00 / 0:00','muted'); playback.addWidget(self.time_label); playback.addStretch(); self.mute_btn=button(t('Mute'),self.toggle_mute,'quiet'); self.mute_btn.setToolTip(t('Mute or unmute playback')); audio_row.addWidget(self.mute_btn); vol=QSlider(Qt.Orientation.Horizontal); vol.setRange(0,100); vol.setValue(self.playback_volume); vol.setMinimumWidth(55); vol.setMaximumWidth(120); vol.setToolTip(t('Playback volume: {0}%',self.playback_volume)); vol.setAccessibleName(t('Playback volume')); self.volume_slider=vol; vol.valueChanged.connect(self.change_volume); audio_row.addWidget(vol,1); self.full_btn=decorate(button('',self.fullscreen_clip),'full'); self.full_btn.setAccessibleName(t('Full screen')); self.full_btn.setEnabled(False); self.full_btn.setToolTip(t('Full screen')+' · Esc'); audio_row.addWidget(self.full_btn); r.addLayout(playback); r.addLayout(audio_row); cv.addLayout(r)
         else:
             msg=label(t('Integrated playback unavailable. Open clips with your system player.'),'muted'); msg.setWordWrap(True); pv.addWidget(msg,1); self.play_btn=button(t('Play externally'),self.play,'primary'); cv.addWidget(self.play_btn)
-        actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_actions=actions; self.external_btn=decorate(button(t('Open externally'),self.play_external),'external'); actions.addWidget(self.external_btn); self.edit_btn=decorate(button(t('Edit clip'),self.edit_selected),'edit'); self.edit_btn.setEnabled(False); actions.addWidget(self.edit_btn); cv.addLayout(actions); manage=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_manage=manage; self.rename_btn=decorate(button(t('Rename'),self.rename_selected,'quiet'),'rename'); self.trash_btn=decorate(button(t('Move to trash'),self.trash_selected,'quiet'),'trash'); self.rename_btn.setEnabled(False); self.trash_btn.setEnabled(False); manage.addWidget(self.rename_btn); manage.addWidget(self.trash_btn); cv.addLayout(manage); self.smart_actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_btn=button(t('Add favorite'),self.toggle_favorite,'quiet'); self.metadata_btn=button(t('Edit game and tags'),self.edit_metadata,'quiet'); self.favorite_btn.setEnabled(False); self.metadata_btn.setEnabled(False); self.smart_actions.addWidget(self.favorite_btn); self.smart_actions.addWidget(self.metadata_btn); cv.addLayout(self.smart_actions); self.metadata_label=label('','muted'); self.metadata_label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); cv.addWidget(self.metadata_label); cv.addStretch(); self.library_controls_scroll=PageScroll(controls); pv.addWidget(self.library_controls_scroll,2); self.play_btn.setEnabled(False); self.external_btn.setEnabled(False); split.addWidget(preview); split.setStretchFactor(0,5); split.setStretchFactor(1,6); split.setSizes([460,540]); v.addWidget(split,1)
+        actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_actions=actions; self.external_btn=decorate(button(t('Open externally'),self.play_external),'external'); actions.addWidget(self.external_btn); self.edit_btn=decorate(button(t('Edit clip'),self.edit_selected),'edit'); self.edit_btn.setEnabled(False); actions.addWidget(self.edit_btn); cv.addLayout(actions); manage=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_manage=manage; self.rename_btn=decorate(button(t('Rename'),self.rename_selected,'quiet'),'rename'); self.trash_btn=decorate(button(t('Move to trash'),self.trash_selected,'quiet'),'trash'); self.rename_btn.setEnabled(False); self.trash_btn.setEnabled(False); manage.addWidget(self.rename_btn); manage.addWidget(self.trash_btn); cv.addLayout(manage); self.smart_actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_btn=button(t('Add favorite'),self.toggle_favorite,'quiet'); self.metadata_btn=button(t('Edit tags'),self.edit_metadata,'quiet'); self.favorite_btn.setEnabled(False); self.metadata_btn.setEnabled(False); self.smart_actions.addWidget(self.favorite_btn); self.smart_actions.addWidget(self.metadata_btn); cv.addLayout(self.smart_actions); self.metadata_label=label('','muted'); self.metadata_label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); cv.addWidget(self.metadata_label); cv.addStretch(); self.library_controls_scroll=PageScroll(controls); pv.addWidget(self.library_controls_scroll,2); self.play_btn.setEnabled(False); self.external_btn.setEnabled(False); split.addWidget(preview); split.setStretchFactor(0,5); split.setStretchFactor(1,6); split.setSizes([460,540]); v.addWidget(split,1)
         self.empty=label(self.hotkey_text('No clips yet. Start the replay and press F8.'),'muted'); v.addWidget(self.empty)
 
     def click_clip(self,item):
@@ -343,7 +350,7 @@ class Window(QMainWindow):
         self.list.setCurrentItem(item)
         menu=QMenu(self.list)
         menu.addAction(t('Play / pause'),self.play); menu.addAction(t('Edit clip'),self.edit_selected); menu.addAction(t('Open externally'),self.play_external)
-        menu.addSeparator(); menu.addAction(self.favorite_btn.text(),self.toggle_favorite); menu.addAction(t('Edit game and tags'),self.edit_metadata)
+        menu.addSeparator(); menu.addAction(self.favorite_btn.text(),self.toggle_favorite); menu.addAction(t('Edit tags'),self.edit_metadata)
         menu.addSeparator(); menu.addAction(t('Copy file path'),self.copy_clip_path); menu.addAction(t('Rename…'),self.rename_selected); menu.addAction(t('Move to trash…'),self.trash_selected)
         menu.exec(self.list.viewport().mapToGlobal(pos))
 
@@ -492,16 +499,14 @@ class Window(QMainWindow):
         path=self.selected_path()
         if path is None: return
         favorite,game,labels=self.metadata_for(str(path))
-        new_game,ok=QInputDialog.getText(self,t('Edit game and tags'),t('Game name:'),text=game)
-        if not ok: return
-        new_tags,ok=QInputDialog.getText(self,t('Edit game and tags'),t('Tags (comma separated):'),text=', '.join(labels))
-        if ok: self.save_metadata(str(path),(favorite,new_game.strip(),library.tags(new_tags)))
+        new_tags,ok=QInputDialog.getText(self,t('Edit tags'),t('Tags (comma separated):'),text=', '.join(labels))
+        if ok: self.save_metadata(str(path),(favorite,game,library.tags(new_tags)))
 
     def select_clip(self,item,previous=None):
         path=item.data(Qt.ItemDataRole.UserRole) if item else None
         self.preview_title.setText(Path(path).stem if path else t('Select a clip')); self.preview_title.setToolTip(path or t('Select a clip')); self.play_btn.setEnabled(bool(path)); self.external_btn.setEnabled(bool(path))
         for b in (self.edit_btn,self.rename_btn,self.trash_btn): b.setEnabled(bool(path))
-        favorite,game,labels=self.metadata_for(path); self.favorite_btn.setEnabled(bool(path)); self.metadata_btn.setEnabled(bool(path)); self.favorite_btn.setText(t('Remove favorite') if favorite else t('Add favorite')); self.metadata_label.setText(' · '.join(([game] if game else [])+['#'+tag for tag in labels]))
+        favorite,game,labels=self.metadata_for(path); self.favorite_btn.setEnabled(bool(path)); self.metadata_btn.setEnabled(bool(path)); self.favorite_btn.setText(t('Remove favorite') if favorite else t('Add favorite')); self.metadata_label.setText(' · '.join(([game or t('Game not detected')] if path else [])+['#'+tag for tag in labels]))
         if self.player: self.full_btn.setEnabled(bool(path))
         if path!=self.preview_path and self.player:
             self.player.stop(); self.player.setSource(QUrl.fromLocalFile(path) if path else QUrl())
@@ -650,7 +655,7 @@ class Window(QMainWindow):
             row=QHBoxLayout(); self.niri_mode_btn=button(t('Change capture backend'),self.choose_niri_mode); row.addWidget(self.niri_mode_btn); cv.addLayout(row); note=label(t('The global shortcut is managed by your compositor. Applying changes may require a reload.'),'muted'); note.setWordWrap(True); cv.addWidget(note)
         v.addWidget(cp)
         row=self.settings_row(); row.addWidget(label(t('Diagnostics'),'section')); row.addStretch(); row.addWidget(button(t('Open recorder log'),lambda:self.open_file(LOG))); v.addLayout(row); v.addStretch()
-        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); self.update_panel.current.setText('v1.5.0-dev (Git)\n'+self.update_panel.current.text()); v.addWidget(self.update_panel); v.addStretch()
+        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); self.update_panel.current.setText('v1.6.0-dev (Git)\n'+self.update_panel.current.text()); v.addWidget(self.update_panel); v.addStretch()
         # Keep related capture controls first, then interface and keyboard preferences.
         pages=[(tabs.widget(i),self.settings_selector.itemText(i)) for i in range(tabs.count())]
         self.settings_list.clear(); self.settings_selector.clear()
@@ -1133,7 +1138,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.5.0-dev • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.6.0-dev • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1187,6 +1192,7 @@ class Window(QMainWindow):
         for (secs,_),b in zip(DURATIONS,self.duration_buttons): b.setEnabled(idle and secs<=self.buffer_seconds)
         for b in (self.folder_btn,self.drive_btn,self.mic_btn,self.source_btn,self.output_btn,self.routing_btn,self.profile_btn,self.buffer_btn,self.rate_btn): b.setEnabled(idle and self.active is False and not self.editor.busy())
         if hasattr(self,"niri_mode_btn"): self.niri_mode_btn.setEnabled(idle and self.active is False)
+        game=games.recent_game(4) if self.active else ''; self.game_status.setText(t('Detected game: {0}',game) if game else t('Game not detected')); self.game_status.setVisible(self.active is True)
         self.sync_duration_ui()
 
     def choose_duration(self,seconds):
@@ -1267,11 +1273,18 @@ class Window(QMainWindow):
             files.sort(key=lambda x:x[1],reverse=True)
         except OSError: files=[]
         self.clip_count.setText(clip_count(len(files))); self.empty.setVisible(not files); self.recent_empty.setVisible(len(files)<2); self.recent.setVisible(len(files)>1); self.collection_title.setText(t('Your first clip is saved') if files else t('Your collection starts here')); self.collection_hint.setText(t('More saves will appear here.') if files else t('Saved clips appear automatically.')); total=sum(f[2] for f in files); self.collection_summary.setText(clip_count(len(files))+'  ·  '+(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')+'  ·  '+t('Local library')); self.collection_detail.setText(t('Click a thumbnail to watch it.') if files else t('The latest capture will appear here.'))
-        if files==self.snapshot and not force: return
+        try: db_stamp=self.library_db.path.stat().st_mtime_ns
+        except OSError: db_stamp=None
+        if files==self.snapshot and not force:
+            if db_stamp==self.metadata_stamp: return
+            try: current=self.library_db.load()
+            except (OSError,sqlite3.Error): return
+            self.metadata_stamp=db_stamp
+            if current==self.clip_metadata: return
         selected=self.list.currentItem(); selected=selected.data(Qt.ItemDataRole.UserRole) if selected else None
         self.library_keys={key[0]:key for key in files}
         try:
-            self.clip_metadata=self.library_db.load(); self.durations=self.library_db.load_durations()
+            self.clip_metadata=self.library_db.load(); self.durations=self.library_db.load_durations(); self.metadata_stamp=db_stamp
         except (OSError,sqlite3.Error) as exc: self.message.setText(t('Library metadata unavailable')+': '+str(exc))
         self.probe_failed.intersection_update(files); self.probe_queue=[key for key in files if key[2]>0 and key not in self.durations and key not in self.probe_failed and key!=self.probe_current]
         self.refresh_game_filter()
@@ -1279,7 +1292,7 @@ class Window(QMainWindow):
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
         recent_paths={f[0]:i for i,f in enumerate(files[1:7])}; recent_items={}
         for index,key in enumerate(ordered):
-            path,mtime,size=key; p=Path(path); stamp=QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm'); duration=self.durations.get(key); suffix=' · '+library.duration_text(duration) if duration is not None else ''; item=QListWidgetItem(f'{p.stem}\n{stamp} · {size/1024**2:.0f} MB'+suffix); item.setData(Qt.ItemDataRole.UserRole,path); favorite,game,labels=self.metadata_for(path); item.setData(Qt.ItemDataRole.UserRole+1,favorite); item.setToolTip('\n'.join([path,game,', '.join(labels)]).strip())
+            path,mtime,size=key; p=Path(path); stamp=QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm'); duration=self.durations.get(key); suffix=' · '+library.duration_text(duration) if duration is not None else ''; item=QListWidgetItem(f'{p.stem}\n{stamp} · {size/1024**2:.0f} MB'+suffix); item.setData(Qt.ItemDataRole.UserRole,path); favorite,game,labels=self.metadata_for(path); item.setData(Qt.ItemDataRole.UserRole+1,favorite); item.setData(Qt.ItemDataRole.UserRole+2,game); item.setToolTip('\n'.join([path,game,', '.join(labels)]).strip())
             pix=self.thumbs.get(key); item.setIcon(QIcon(pix) if pix is not None else self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)); self.list.addItem(item)
             if path in recent_paths: recent_items[recent_paths[path]]=item.clone()
             if path==selected: self.list.setCurrentItem(item)
@@ -1367,4 +1380,4 @@ class Window(QMainWindow):
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.5.0-dev'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.6.0-dev'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())

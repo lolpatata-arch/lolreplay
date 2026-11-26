@@ -3,6 +3,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 import sqlite3
 import math
+import os
 import time
 
 
@@ -52,6 +53,15 @@ def duration_text(seconds):
 EMPTY = (False, '', ())
 
 
+def default_path():
+    return Path(os.environ.get('XDG_STATE_HOME',str(Path.home()/'.local/state')))/'lolreplay/library.sqlite3'
+
+
+def file_key(path):
+    path=Path(path).absolute(); st=path.stat()
+    return str(path),st.st_mtime_ns,st.st_size
+
+
 class Library:
     def __init__(self, path):
         self.path = Path(path)
@@ -80,6 +90,19 @@ class Library:
     def rename(self, old, new):
         with self.connection() as db:
             db.execute('UPDATE clips SET path=?, mtime=?, size=? WHERE path=? AND mtime=? AND size=?', (*new, *old))
+
+    def assign_game(self,path,game):
+        key=file_key(path)
+        with self.connection() as db:
+            db.execute("INSERT INTO clips VALUES (?,?,?,?,?,?) ON CONFLICT(path,mtime,size) DO UPDATE SET game=excluded.game WHERE clips.game=''",(*key,0,game,''))
+
+    def copy_metadata(self,old,new,replace=False):
+        with self.connection() as db:
+            row=db.execute('SELECT favorite,game,tags FROM clips WHERE path=? AND mtime=? AND size=?',old).fetchone()
+            if row:
+                f,g,t=row
+                db.execute('INSERT OR REPLACE INTO clips VALUES (?,?,?,?,?,?)',(*new,f if replace else 0,g,t))
+                if replace and old!=new: db.execute('DELETE FROM clips WHERE path=? AND mtime=? AND size=?',old)
 
     def load_durations(self):
         with self.connection() as db:
