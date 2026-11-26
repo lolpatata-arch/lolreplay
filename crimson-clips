@@ -271,7 +271,7 @@ def stop():
 
 
 def doctor(cfg):
-    print("=== LOLREPLAY 1.8.0 / DIAGNÓSTICO ===")
+    print("=== LOLREPLAY 1.9.0 / DIAGNÓSTICO ===")
     print("Compositor:", compositor.detect())
     print("Capture:", compositor.capture(cfg))
     print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
@@ -326,7 +326,7 @@ def temporary_bind():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="lolreplay 1.8.0 - Replay local para Hyprland y Niri")
+    parser = argparse.ArgumentParser(description="lolreplay 1.9.0 - Replay local para Hyprland y Niri")
     sub = parser.add_subparsers(dest="command", required=True)
     for cmd in ("start", "stop", "status", "doctor", "bind-temporary", "config"):
         sub.add_parser(cmd)
