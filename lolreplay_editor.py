@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize
 from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence
 from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog,QSplitter)
 import lolreplay_storage as storage
-from lolreplay_export import probe, export_args, temp_for
+from lolreplay_export import probe, probe_details, export_args, temp_for, next_export_path
 from lolreplay_icons import decorate
 from lolreplay_widgets import SeekSlider, PageScroll, fit_combo
 try:
@@ -155,7 +155,7 @@ class Editor(QWidget):
         grid.addWidget(lab(t('IN'),'eyebrow'),0,0); grid.addWidget(lab(t('OUT'),'eyebrow'),0,1); grid.addWidget(self.start,1,0); grid.addWidget(self.end,1,1)
         self.markin=btn(t('Set in at playhead'),lambda:self.set_range(self.timeline.pos,self.end.value(),'start')); self.markout=btn(t('Set out at playhead'),lambda:self.set_range(self.start.value(),self.timeline.pos,'end')); grid.addWidget(self.markin,2,0); grid.addWidget(self.markout,2,1); trim_layout.addLayout(grid)
         row=QHBoxLayout(); self.selection=lab(t('Selected: {0}','00:00.0'),'section'); row.addWidget(self.selection); row.addStretch(); self.reset=btn(t('Reset trim'),lambda:self.set_range(0,self.total)); row.addWidget(self.reset); trim_layout.addLayout(row); self.trim_scroll=PageScroll(trim); l.addWidget(self.trim_scroll,2); area.addWidget(left)
-        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
+        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); self.track_panel=QWidget(); self.track_layout=QVBoxLayout(self.track_panel); self.track_layout.setContentsMargins(0,0,0,0); r.addWidget(self.track_panel); self.track_sliders=[]; self.track_panel.hide(); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
         self.note=lab(window.hotkey_text('Save a clip with F8 to start editing.'),'muted'); self.note.setWordWrap(True); self.note.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.note); self.controls()
     def set_stacked(self, stacked):
         orientation=Qt.Orientation.Vertical if stacked else Qt.Orientation.Horizontal
@@ -169,7 +169,26 @@ class Editor(QWidget):
         ready=bool(self.source and self.total>0); busy=self.busy()
         for w in (self.timeline,self.start,self.end,self.reset,self.vol,self.music_btn): w.setEnabled(ready and not busy)
         self.play.setEnabled(ready and self.player is not None and not busy); self.markin.setEnabled(self.play.isEnabled()); self.markout.setEnabled(self.play.isEnabled()); self.musicvol.setEnabled(ready and bool(self.music) and not busy); self.clear_music.setEnabled(bool(self.music) and not busy); self.choose.setEnabled(not busy and self.choose.count()>1); self.export.setEnabled(ready and not busy and shutil.which('ffmpeg') is not None); self.cancel.setEnabled(busy)
+        self.track_panel.setEnabled(ready and not busy)
         if MEDIA: self.full_btn.setEnabled(ready and not busy)
+    def build_tracks(self,titles):
+        while self.track_layout.count():
+            item=self.track_layout.takeAt(0)
+            if item.widget(): item.widget().deleteLater()
+        self.track_sliders=[]
+        self.track_panel.setVisible(len(titles)>1)
+        if len(titles)<=1: return
+        self.track_layout.addWidget(lab(t('Independent audio tracks'),'section'))
+        note=lab(t('Track volumes apply to export. Preview selects one original track.'),'muted'); note.setWordWrap(True); self.track_layout.addWidget(note)
+        for i,title in enumerate(titles):
+            group=QWidget(); layout=QVBoxLayout(group); layout.setContentsMargins(0,0,0,0)
+            name=t('Audio track {0}',i+1)+(' · '+title if title else '')
+            heading=lab(name,'muted'); heading.setTextFormat(Qt.TextFormat.PlainText); heading.setWordWrap(True); layout.addWidget(heading)
+            slider=self.slider(layout,100); slider.setAccessibleName(name); self.track_sliders.append(slider)
+            if self.player:
+                listen=btn(t('Listen to track'),lambda checked=False,i=i:self.player.setActiveAudioTrack(i)); layout.addWidget(listen)
+            self.track_layout.addWidget(group)
+
     def fullscreen_preview(self):
         if self.player and self.source and not self.busy():
             show_fullscreen(self,self.player,self.video,self.play_selection)
@@ -213,11 +232,11 @@ class Editor(QWidget):
             p=Path(path).resolve(strict=True)
             if p==self.source and storage.signature(p)==self.source_signature: self.sync_selection(); return True
             identity=storage.signature(p)
-            d,a,v=probe(p)
+            d,titles,v=probe_details(p); a=len(titles)
             if storage.signature(p)!=identity: raise ValueError('Clip changed while opening')
             if not v or d<=0: raise ValueError(t('No readable video or duration'))
         except Exception as e: self.note.setText(t('Cannot open clip: ')+str(e)); return False
-        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.title.setText(p.name); self.title.setToolTip(str(p)); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False
+        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.build_tracks(titles); self.title.setText(p.name); self.title.setToolTip(str(p)); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False
         for w in (self.start,self.end):
             w.blockSignals(True); w.setRange(0,d); w.blockSignals(False)
         self.set_range(0,d); self.position(0); self.progress.setValue(0)
@@ -250,7 +269,7 @@ class Editor(QWidget):
         if self.player: self.player.pause()
     def release(self):
         if self.player: self.player.stop(); self.player.setSource(QUrl())
-        self.source=None; self.total=0.; self.timeline.total=0.; self.timeline.update(); self.title.setText(t('No clip selected')); self.sync_selection(); self.controls()
+        self.source=None; self.total=0.; self.tracks=0; self.build_tracks([]); self.timeline.total=0.; self.timeline.update(); self.title.setText(t('No clip selected')); self.sync_selection(); self.controls()
     def choose_music(self):
         p,_=QFileDialog.getOpenFileName(self,t('Choose local music'),str(Path.home()),'Audio (*.mp3 *.wav *.flac *.ogg *.m4a *.aac *.opus);;All files (*)')
         if not p: return
@@ -271,11 +290,15 @@ class Editor(QWidget):
             if b-a<.09: raise ValueError(t('Invalid destination or trim range'))
             if self.source.parent!=self.window.out.resolve(): raise ValueError(t("Select a clip from the current library"))
             if not self.source.is_file() or (self.music and not self.music.is_file()): raise ValueError(t('A source file is missing'))
-            if QMessageBox.question(self,t("Replace original?"),t('Save changes to {0}? The previous version will be replaced, not kept as a separate clip.',target.name),QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes: return
+            self.copy_export=self.tracks>1
+            if self.copy_export:
+                if QMessageBox.question(self,t('Save mixed copy'),t('Export a mixed copy? The original independent tracks will be preserved.'),QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes: return
+                target=next_export_path(self.window.out,self.source)
+            elif QMessageBox.question(self,t("Replace original?"),t('Save changes to {0}? The previous version will be replaced, not kept as a separate clip.',target.name),QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes: return
             self.expected=self.source_signature
-            if storage.signature(target)!=self.expected: raise ValueError(t('Clip changed since opening; select it again'))
+            if storage.signature(self.source)!=self.expected: raise ValueError(t('Clip changed since opening; select it again'))
             self.temp=temp_for(storage.staging()/target.name); self.target=target
-            args=export_args(self.source,self.temp,a,b,self.tracks,self.vol.value(),self.music,self.musicvol.value()); self.export_length=b-a
+            args=export_args(self.source,self.temp,a,b,self.tracks,self.vol.value(),self.music,self.musicvol.value(),[s.value() for s in self.track_sliders] if self.copy_export else None); self.export_length=b-a
         except Exception as e:
             self.cleanup(); self.note.setText(t('Export: ')+str(e)); return
         self.pause(); self.cancelled=False; self.buf=''; self.err=''; self.progress.setValue(0); self.controls(); self.note.setText(t('Exporting… original file is safe.')); self.proc.start('ffmpeg',args)
@@ -309,7 +332,8 @@ class Editor(QWidget):
                 if self.window.player and self.window.preview_path==str(target):
                     self.window.player.stop(); self.window.player.setSource(QUrl()); self.window.preview_path=None
                 storage.config_check(target.parent)
-                storage.replace_clip(self.temp,target,self.expected,self.library_id)
+                if self.copy_export: storage.publish(self.temp,target,self.library_id)
+                else: storage.replace_clip(self.temp,target,self.expected,self.library_id)
                 self.cleanup(); self.release(); self.remove_music(); self.vol.setValue(100); self.musicvol.setValue(25)
                 self.window.refresh_library(force=True); self.load(str(target)); self.progress.setValue(100); self.note.setText(t('Changes saved: ')+target.name)
         except Exception as e:

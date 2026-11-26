@@ -30,6 +30,34 @@ def output_device(name):
     if name not in dict(outputs()): raise RuntimeError('Selected output unavailable: '+name)
     return gsr_device(name+'.monitor')
 
+def app_names(value):
+    if not isinstance(value,list) or len(value)>8:
+        raise ValueError('Select up to eight application names')
+    seen=set()
+    for name in value:
+        if not isinstance(name,str) or not name or name != name.strip() or len(name)>128 or any(c in name for c in '|;\x00\r\n,') or name.casefold() in seen:
+            raise ValueError('Invalid or duplicate application name')
+        seen.add(name.casefold())
+    return value
+
+
+def track_args(mode, output, mic=None, apps=()):
+    if mode == 'mixed':
+        return ['-a',output+('|' + mic if mic else '')]
+    if mode == 'separate':
+        sources=[output]
+    elif mode == 'apps':
+        names=app_names(list(apps))
+        if not names:
+            raise ValueError('Select at least one application for application-only recording')
+        sources=['app:'+name for name in names]
+    else:
+        raise ValueError('Invalid audio mode')
+    if mic:
+        sources.append(mic)
+    return [part for source in sources for part in ('-a',source)]
+
+
 def module_rows():
     # The tab-separated interface provides the numeric ID even when JSON omits index.
     rows=[]

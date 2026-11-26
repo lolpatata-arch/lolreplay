@@ -7,24 +7,32 @@ import tempfile
 from pathlib import Path
 
 
-def probe(path):
+def probe_details(path):
     result = subprocess.run(['ffprobe','-v','error','-show_streams','-show_format','-of','json',str(path)], capture_output=True, text=True, timeout=8, check=True)
     data=json.loads(result.stdout)
     streams=data.get('streams',[])
     duration=float(data.get('format',{}).get('duration',0))
     if not math.isfinite(duration): raise ValueError('Invalid media duration')
-    return duration, sum(s.get('codec_type')=='audio' for s in streams), any(s.get('codec_type')=='video' for s in streams)
+    titles=[str(s.get('tags',{}).get('title') or '') for s in streams if s.get('codec_type')=='audio']
+    return duration,titles,any(s.get('codec_type')=='video' for s in streams)
 
 
-def export_args(source, temp, start, end, tracks, volume=100, music=None, music_volume=25):
+def probe(path):
+    duration,titles,video=probe_details(path)
+    return duration,len(titles),video
+
+
+def export_args(source, temp, start, end, tracks, volume=100, music=None, music_volume=25, track_volumes=None):
     if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end): raise ValueError('Invalid trim range')
     if not 0 <= volume <= 100 or not 0 <= music_volume <= 100: raise ValueError('Invalid volume')
+    if track_volumes is not None and (len(track_volumes)!=tracks or any(type(v) is not int or not 0<=v<=100 for v in track_volumes)): raise ValueError('Invalid track volumes')
     length=end-start
     args=['-hide_banner','-nostdin','-loglevel','error','-progress','pipe:1','-nostats','-y','-ss',f'{start:.3f}','-i',str(source)]
     if music: args += ['-stream_loop','-1','-i',str(music)]
     filters=[]; inputs=[]
     for i in range(tracks):
-        filters.append(f'[0:a:{i}]aresample=48000,aformat=channel_layouts=stereo,volume={volume/100:.3f}[a{i}]'); inputs.append(f'[a{i}]')
+        gain=volume/100*(track_volumes[i]/100 if track_volumes is not None else 1)
+        filters.append(f'[0:a:{i}]aresample=48000,aformat=channel_layouts=stereo,volume={gain:.3f}[a{i}]'); inputs.append(f'[a{i}]')
     if music:
         filters.append(f'[1:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={music_volume/100:.3f}[music]'); inputs.append('[music]')
     if len(inputs)>1:
