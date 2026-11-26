@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 — Release candidate (not yet published)
+
+- Consolidate smart library, automatic audio tracks, editor and game detection from 1.3–1.6.
+- Optional close-to-tray with start/save/stop controls; quitting the interface leaves the independent recorder running.
+- Lightweight status checks in the background, unexpected stop notification, manual restart; no automatic reset of replay history.
+- Reduce repeated configuration and unchanged-library UI work; cap thumbnail pixmap references and reuse game identity briefly.
+- Local interface RAM and thumbnail diagnostics. Version unified across wrapper, UI, updater and installer.
+- Full test suite and live desktop validation required before a stable release.
+
 ## Unreleased — 1.6 game detection
 
 - Automatically identify focused Steam/Proton games from app IDs and local manifests, and supported native games from known window classes.

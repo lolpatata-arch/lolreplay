@@ -107,14 +107,16 @@ def watch(pid):
 
 
 def monitor(pid,identity):
-    names={}; refreshed=0.; samples=[]
+    names={}; refreshed=0.; samples=[]; previous=None; game=''; identified=0.
     tmp=STATE.with_name(STATE.name+f'.{os.getpid()}.tmp')
     try:
         while proc_identity(pid)==identity:
             now=time.time()
             if now-refreshed>=60:
-                names=steam_names(); refreshed=now
-            game=identify(focused_window(),names)
+                names=steam_names(); refreshed=now; previous=None
+            window=focused_window(); key=tuple(window.get(k) for k in ('class','initialClass','app_id','pid'))
+            if key!=previous or now-identified>=10:
+                game=identify(window,names); previous=key; identified=now
             samples=[s for s in samples if s[0]>=now-1200-INTERVAL]
             samples.append((now,game))
             try:

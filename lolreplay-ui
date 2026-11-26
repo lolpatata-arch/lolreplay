@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""lolreplay 1.6.0-dev: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.7.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
+import time
 import re
 import lolreplay_preferences as prefs
 import lolreplay_shortcuts as keys
@@ -28,7 +29,7 @@ from PySide6.QtCore import Qt, QProcess, QTimer, QSize, QUrl, QRect, QRectF, QEv
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices, QPainter, QColor, QPen, QFont, QPainterPath, QLinearGradient, QBrush, QPalette, QRadialGradient, QShortcut, QKeySequence
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QBoxLayout, QGridLayout, QFrame, QListWidget, QListWidgetItem,
-    QComboBox, QStackedWidget, QAbstractItemView, QStyle, QLineEdit, QSlider, QSplitter, QScrollArea, QSizePolicy, QStyledItemDelegate, QStyleOptionViewItem, QProgressBar, QInputDialog, QMessageBox, QFileDialog, QColorDialog, QMenu, QTabWidget, QCheckBox, QKeySequenceEdit)
+    QComboBox, QStackedWidget, QAbstractItemView, QStyle, QLineEdit, QSlider, QSplitter, QScrollArea, QSizePolicy, QStyledItemDelegate, QStyleOptionViewItem, QProgressBar, QInputDialog, QMessageBox, QFileDialog, QColorDialog, QMenu, QTabWidget, QCheckBox, QKeySequenceEdit, QSystemTrayIcon)
 try:
     from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -185,7 +186,7 @@ class Window(QMainWindow):
         if not icon.exists(): icon=Path(__file__).resolve().with_name('lolreplay.png')
         self.logo=QIcon(str(icon)); self.player=None; self.preview_path=None; self.recent_buttons=[]
         self.setWindowIcon(QIcon(str(icon)))
-        self.active=None; self.pending=None; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
+        self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
         preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Crimson Red')
         self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences'))
         raw_volume=preferences.get('playback_volume',45)
@@ -209,7 +210,7 @@ class Window(QMainWindow):
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.6.0-dev','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.0','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
         topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
@@ -217,7 +218,8 @@ class Window(QMainWindow):
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
         self.timer=QTimer(self); self.timer.timeout.connect(self.tick); self.timer.setInterval(self.prefs['refresh_ms']); self.timer.setTimerType(Qt.TimerType.CoarseTimer)
-        self.closing=False
+        self.health_timer=QTimer(self); self.health_timer.setInterval(10000); self.health_timer.setTimerType(Qt.TimerType.CoarseTimer); self.health_timer.timeout.connect(self.background_health)
+        self.setup_tray(); self.closing=False
         QApplication.instance().applicationStateChanged.connect(self.application_state_changed)
         self.application_state_changed(QApplication.instance().applicationState())
         self._responsive_ready=True; self.update_layout(force=True)
@@ -654,8 +656,9 @@ class Window(QMainWindow):
         if compositor.detect()=='niri':
             row=QHBoxLayout(); self.niri_mode_btn=button(t('Change capture backend'),self.choose_niri_mode); row.addWidget(self.niri_mode_btn); cv.addLayout(row); note=label(t('The global shortcut is managed by your compositor. Applying changes may require a reload.'),'muted'); note.setWordWrap(True); cv.addWidget(note)
         v.addWidget(cp)
-        row=self.settings_row(); row.addWidget(label(t('Diagnostics'),'section')); row.addStretch(); row.addWidget(button(t('Open recorder log'),lambda:self.open_file(LOG))); v.addLayout(row); v.addStretch()
-        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); self.update_panel.current.setText('v1.6.0-dev (Git)\n'+self.update_panel.current.text()); v.addWidget(self.update_panel); v.addStretch()
+        row=self.settings_row(); row.addWidget(label(t('Diagnostics'),'section')); row.addStretch(); row.addWidget(button(t('Open recorder log'),lambda:self.open_file(LOG))); v.addLayout(row)
+        self.diagnostics=label('','muted'); self.diagnostics.setWordWrap(True); v.addWidget(self.diagnostics); v.addWidget(button(t('Refresh diagnostics'),self.refresh_diagnostics)); v.addStretch()
+        v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); v.addWidget(self.update_panel); v.addStretch()
         # Keep related capture controls first, then interface and keyboard preferences.
         pages=[(tabs.widget(i),self.settings_selector.itemText(i)) for i in range(tabs.count())]
         self.settings_list.clear(); self.settings_selector.clear()
@@ -687,7 +690,7 @@ class Window(QMainWindow):
         toggle('pause_in_background','Pause playback when leaving the app')
         v.addStretch(); v=self.settings_tab(tabs,t('Behaviour'))
         choice('startup_page','Open at startup',[(0,'Replay'),(1,'Clips'),(2,'Editor'),(3,'Settings')])
-        toggle('keyboard_shortcuts','Enable app keyboard shortcuts'); toggle('thumbnails','Generate clip thumbnails')
+        toggle('keyboard_shortcuts','Enable app keyboard shortcuts'); toggle('thumbnails','Generate clip thumbnails'); toggle('close_to_tray','Close to system tray')
         choice('refresh_ms','Library refresh interval',[(2500,'2.5 s'),(5000,'5 s'),(10000,'10 s')]); toggle('background_refresh','Refresh library in the background')
         note=label(self.hotkey_text('These settings do not change recording, export quality or F8.'),'muted'); note.setWordWrap(True); v.addWidget(note)
         v.addWidget(button(t('Reset accessibility preferences'),self.reset_preferences,'quiet')); v.addStretch()
@@ -859,9 +862,6 @@ class Window(QMainWindow):
         super().resizeEvent(event)
         if getattr(self,'_responsive_ready',False): self.update_layout()
 
-    def showEvent(self,event):
-        super().showEvent(event)
-        if getattr(self,'_responsive_ready',False): self.update_layout(force=True)
 
     def update_layout(self,force=False):
         # Qt reports logical pixels; never use physical screen resolution for reflow.
@@ -1138,23 +1138,32 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.6.0-dev • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.7.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
 
     def foreground(self):
-        return QApplication.instance().applicationState()==Qt.ApplicationState.ApplicationActive and not self.isMinimized()
+        return self.isVisible() and QApplication.instance().applicationState()==Qt.ApplicationState.ApplicationActive and not self.isMinimized()
 
     def application_state_changed(self,state):
         if self.closing: return
         if self.prefs['pause_in_background'] and not self.foreground():
             if self.player: self.player.pause()
             self.editor.pause()
-        if self.foreground() or self.prefs['background_refresh']:
-            self.timer.start(); self.tick(); self.next_thumbnail()
+        if self.isVisible() and (self.foreground() or self.prefs['background_refresh']):
+            self.health_timer.stop(); self.timer.start(); self.tick(); self.next_thumbnail()
         else:
-            self.timer.stop()
+            self.timer.stop(); self.health_timer.start()
+            if not self.isVisible(): self.editor.stop_strip()
+
+    def showEvent(self,event):
+        super().showEvent(event)
+        if hasattr(self,'health_timer'): self.application_state_changed(QApplication.instance().applicationState())
+        if getattr(self,'_responsive_ready',False): self.update_layout(force=True)
+
+    def background_health(self):
+        if not self.closing and (self.last_confirmed_active or self.isVisible() or self.tray.isVisible()): self.check_status()
 
     def changeEvent(self,event):
         super().changeEvent(event)
@@ -1162,8 +1171,11 @@ class Window(QMainWindow):
             self.application_state_changed(QApplication.instance().applicationState())
 
     def tick(self):
-        if (not self.foreground() and not self.prefs['background_refresh']) or self.closing: return
-        if self.pending is None: self.sync_config()
+        if not self.isVisible() or (not self.foreground() and not self.prefs['background_refresh']) or self.closing: return
+        if self.pending is None:
+            now=time.monotonic()
+            if now-getattr(self,'last_config_sync',-100)>10:
+                self.sync_config(); self.last_config_sync=now
         self.check_status(); self.refresh_library(); self.next_thumbnail()
 
     def check_status(self):
@@ -1174,7 +1186,12 @@ class Window(QMainWindow):
     def status_done(self,code,exit_status):
         self.poll_watch.stop()
         if self.pending is not None: return
-        self.active=(code==0) if exit_status==QProcess.ExitStatus.NormalExit and code in (0,1) else None; self.paint_status()
+        current=(code==0) if exit_status==QProcess.ExitStatus.NormalExit and code in (0,1) else None
+        if current is False and self.last_confirmed_active:
+            self.recorder_interrupted=True; self.message.setText(t('Replay ended unexpectedly. Restart to begin a new buffer.')); self.tray_notice(t('Replay ended unexpectedly. Restart to begin a new buffer.'))
+        if current is not None: self.last_confirmed_active=current
+        if current is True: self.recorder_interrupted=False
+        self.active=current; self.paint_status()
         err=bytes(self.poll.readAllStandardError()).decode(errors='replace').strip(); self.poll.readAllStandardOutput()
         if self.active is None and err: self.message.setText(err)
 
@@ -1194,6 +1211,8 @@ class Window(QMainWindow):
         if hasattr(self,"niri_mode_btn"): self.niri_mode_btn.setEnabled(idle and self.active is False)
         game=games.recent_game(4) if self.active else ''; self.game_status.setText(t('Detected game: {0}',game) if game else t('Game not detected')); self.game_status.setVisible(self.active is True)
         self.sync_duration_ui()
+        if hasattr(self,'tray'): self.update_tray()
+        if self.recorder_interrupted and self.active is False: self.hero_status.setText(t('Replay interrupted'))
 
     def choose_duration(self,seconds):
         if seconds==self.duration:
@@ -1236,8 +1255,8 @@ class Window(QMainWindow):
             if code==0 and target: self.select_drive_folder(target)
             elif code!=0: self.message.setText('Mount failed: '+(err or out or 'Check Dolphin and disk permissions.'))
             return
-        if code==0 and operation=='start': self.active=True
-        if code==0 and operation=='stop': self.active=False
+        if code==0 and operation=='start': self.active=True; self.last_confirmed_active=True; self.recorder_interrupted=False
+        if code==0 and operation=='stop': self.active=False; self.last_confirmed_active=False; self.recorder_interrupted=False
         self.sync_config(); self.paint_status(); self.check_status(); self.refresh_library()
 
     def action_error(self,error):
@@ -1272,6 +1291,10 @@ class Window(QMainWindow):
                     st=p.stat(); files.append((str(p),st.st_mtime_ns,st.st_size))
             files.sort(key=lambda x:x[1],reverse=True)
         except OSError: files=[]
+        if files==self.snapshot and not force:
+            try: stamp=self.library_db.path.stat().st_mtime_ns
+            except OSError: stamp=None
+            if stamp==self.metadata_stamp: return
         self.clip_count.setText(clip_count(len(files))); self.empty.setVisible(not files); self.recent_empty.setVisible(len(files)<2); self.recent.setVisible(len(files)>1); self.collection_title.setText(t('Your first clip is saved') if files else t('Your collection starts here')); self.collection_hint.setText(t('More saves will appear here.') if files else t('Saved clips appear automatically.')); total=sum(f[2] for f in files); self.collection_summary.setText(clip_count(len(files))+'  ·  '+(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')+'  ·  '+t('Local library')); self.collection_detail.setText(t('Click a thumbnail to watch it.') if files else t('The latest capture will appear here.'))
         try: db_stamp=self.library_db.path.stat().st_mtime_ns
         except OSError: db_stamp=None
@@ -1303,7 +1326,7 @@ class Window(QMainWindow):
         self.next_thumbnail()
 
     def next_thumbnail(self):
-        if not self.foreground() or getattr(self,'closing',False) or self.editor.busy() or any(p.state()!=QProcess.ProcessState.NotRunning for p in (self.thumb,self.probe)): return
+        if not self.foreground() or getattr(self,'closing',False) or self.editor.busy() or any(p.state()!=QProcess.ProcessState.NotRunning for p in (self.thumb,self.probe,self.editor.strip_proc)): return
         thumb_ready=self.prefs['thumbnails'] and bool(self.thumb_queue) and shutil.which('ffmpeg')
         if self.probe_queue and shutil.which('ffprobe') and (self.length_filter.currentData() or not thumb_ready):
             self.probe_current=self.probe_queue.pop(0); path=self.probe_current[0]
@@ -1321,7 +1344,9 @@ class Window(QMainWindow):
 
     def apply_thumbnail(self,key,pix):
         if not self.prefs['thumbnails'] or key not in (self.snapshot or []): return
-        self.thumbs[key]=pix; self.editor.update_thumbnail(key[0],pix)
+        self.thumbs[key]=pix
+        if len(self.thumbs)>256: self.thumbs.pop(next(iter(self.thumbs)))
+        self.editor.update_thumbnail(key[0],pix)
         if self.snapshot and key==self.snapshot[0]: self.update_latest()
         for view in (self.list,self.recent):
             for i in range(view.count()):
@@ -1362,6 +1387,49 @@ class Window(QMainWindow):
         if error==QProcess.ProcessError.FailedToStart:
             self.probe_watch.stop(); self.probe_current=None; self.probe_queue=[]; self.filter_library(self.search.text()); QTimer.singleShot(250,self.next_thumbnail)
 
+    def setup_tray(self):
+        self.tray=QSystemTrayIcon(self.logo,self); self.tray.setToolTip('lolreplay')
+        self.tray_menu=QMenu(self)
+        self.tray_open=self.tray_menu.addAction(t('Open lolreplay'),self.restore_window)
+        self.tray_start=self.tray_menu.addAction(t('Start'),lambda:self.run('start'))
+        self.tray_save=self.tray_menu.addAction(t('Save clip'),lambda:self.run('save'))
+        self.tray_stop=self.tray_menu.addAction(t('Stop'),lambda:self.run('stop'))
+        self.tray_menu.addSeparator(); self.tray_menu.addAction(t('Quit interface'),self.quit_interface)
+        self.tray.setContextMenu(self.tray_menu)
+        self.tray.activated.connect(lambda reason:self.restore_window() if reason==QSystemTrayIcon.ActivationReason.Trigger else None)
+        self.update_tray()
+
+    def update_tray(self):
+        self.tray.setToolTip('lolreplay · '+{True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active])
+        idle=self.pending is None and not self.update_panel.busy()
+        self.tray_start.setEnabled(idle and self.active is False and getattr(self,'config_valid',True))
+        self.tray_save.setEnabled(idle and self.active is True and getattr(self,'config_valid',True))
+        self.tray_stop.setEnabled(idle and self.active is True)
+
+    def tray_notice(self,message):
+        if hasattr(self,'tray') and self.tray.isVisible(): self.tray.showMessage('lolreplay',message,QSystemTrayIcon.MessageIcon.Warning,5000)
+        elif shutil.which('notify-send'):
+            try: subprocess.Popen(['notify-send','lolreplay',message],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            except OSError: pass
+
+    def restore_window(self):
+        self.showNormal(); self.raise_(); self.activateWindow(); self.tray.hide(); self.application_state_changed(QApplication.instance().applicationState())
+        if self.editor.source and self.editor.timeline.frames.isNull(): self.editor.request_strip()
+
+    def quit_interface(self):
+        self.exiting=True; self.close()
+        if not self.closing: self.exiting=False
+
+    def refresh_diagnostics(self):
+        import resource
+        rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
+        try:
+            line=next(x for x in Path('/proc/self/status').read_text().splitlines() if x.startswith('VmRSS:'))
+            rss=int(line.split()[1])/1024
+        except (OSError,ValueError,StopIteration,IndexError): pass
+        status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
+        self.diagnostics.setText('lolreplay 1.7.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+
     def closeEvent(self,event):
         if self.update_panel.busy():
             event.ignore(); return
@@ -1372,7 +1440,9 @@ class Window(QMainWindow):
             self.message.setText(t('Wait for the current command to finish before closing.')); event.ignore(); return
         try: write_ui({**read_json(UI_CONFIG),'playback_volume':self.playback_volume,'library_sort':self.library_sort})
         except OSError: pass
-        self.closing=True; self.timer.stop()
+        if not self.exiting and not self.update_panel.installed and self.prefs['close_to_tray'] and QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray.show(); self.hide(); self.application_state_changed(QApplication.instance().applicationState()); event.ignore(); return
+        self.closing=True; self.timer.stop(); self.health_timer.stop(); self.tray.hide()
         if self.player: self.player.stop()
         for p in (self.poll,self.thumb,self.probe):
             if p.state()!=QProcess.ProcessState.NotRunning: p.kill(); p.waitForFinished(1000)
@@ -1380,4 +1450,4 @@ class Window(QMainWindow):
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.6.0-dev'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.0'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())

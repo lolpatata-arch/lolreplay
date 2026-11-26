@@ -4,7 +4,7 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v1.2.0 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v1.7.0 release candidate · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
@@ -17,7 +17,11 @@ lolreplay is a free, open-source desktop application for saving the moments that
 - Trim recordings, adjust audio and add local music; save edits directly to the library.
 - Microphone and capture-output selection, external storage and local recovery on transfer failure.
 - Dark themes, custom colours, accessibility preferences and nine interface languages.
-- Reduced background polling and thumbnail work when the app is unfocused by default.
+- Smart local library: favorites, tags, date/duration/game filters, persistent thumbnails and automatic game labels.
+- Automatic application audio tracks with microphone separation; independent export gains.
+- Filmstrip editor, zoom, loop, speed and vertical/square export; originals preserved by default.
+- Reduced UI polling, bounded thumbnail cache, background recorder health checks and optional close-to-tray (requires desktop tray support).
+- Local diagnostics and manual recovery after unexpected recorder termination. No automatic buffer reset.
 
 ## Updates (manual, opt-in)
 

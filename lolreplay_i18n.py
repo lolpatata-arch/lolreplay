@@ -3506,3 +3506,95 @@ _game16_rows = [
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _game16_rows})
 
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Detected game: {0}","Juego detectado: {0}","Jeu détecté : {0}","Erkanntes Spiel: {0}","Обнаруженная игра: {0}","Wykryta gra: {0}","検出したゲーム：{0}","检测到游戏：{0}","Gioco rilevato: {0}"]]})
+
+_polish17_rows = [
+  [
+    "Close to system tray",
+    "Cerrar en la bandeja del sistema",
+    "Fermer dans la zone de notification",
+    "In den Infobereich schließen",
+    "Закрывать в системный трей",
+    "Zamknij do zasobnika",
+    "閉じるとトレイへ",
+    "关闭到系统托盘",
+    "Chiudi nell’area di notifica"
+  ],
+  [
+    "Open lolreplay",
+    "Abrir lolreplay",
+    "Ouvrir lolreplay",
+    "lolreplay öffnen",
+    "Открыть lolreplay",
+    "Otwórz lolreplay",
+    "lolreplayを開く",
+    "打开 lolreplay",
+    "Apri lolreplay"
+  ],
+  [
+    "Quit interface",
+    "Cerrar interfaz",
+    "Quitter l’interface",
+    "Oberfläche beenden",
+    "Закрыть интерфейс",
+    "Zamknij interfejs",
+    "インターフェースを終了",
+    "退出界面",
+    "Chiudi interfaccia"
+  ],
+  [
+    "Replay ended unexpectedly. Restart to begin a new buffer.",
+    "El replay terminó inesperadamente. Reinicia para iniciar un nuevo búfer.",
+    "Replay interrompu. Redémarrez pour un nouveau tampon.",
+    "Replay unerwartet beendet. Neu starten für einen neuen Puffer.",
+    "Повтор неожиданно завершился. Перезапустите для нового буфера.",
+    "Replay zakończył się niespodziewanie. Uruchom ponownie, aby rozpocząć nowy bufor.",
+    "リプレイが予期せず終了しました。再起動して新しいバッファーを開始。",
+    "回放意外结束。重启以开始新缓冲区。",
+    "Replay terminato inaspettatamente. Riavvia per un nuovo buffer."
+  ],
+  [
+    "Replay interrupted",
+    "Replay interrumpido",
+    "Replay interrompu",
+    "Replay unterbrochen",
+    "Повтор прерван",
+    "Replay przerwany",
+    "リプレイ中断",
+    "回放中断",
+    "Replay interrotto"
+  ],
+  [
+    "Refresh diagnostics",
+    "Actualizar diagnóstico",
+    "Actualiser le diagnostic",
+    "Diagnose aktualisieren",
+    "Обновить диагностику",
+    "Odśwież diagnostykę",
+    "診断を更新",
+    "刷新诊断",
+    "Aggiorna diagnostica"
+  ],
+  [
+    "Interface RAM: {0} MiB",
+    "RAM de la interfaz: {0} MiB",
+    "RAM de l’interface : {0} MiB",
+    "Oberflächen-RAM: {0} MiB",
+    "ОЗУ интерфейса: {0} МиБ",
+    "RAM interfejsu: {0} MiB",
+    "画面RAM：{0} MiB",
+    "界面内存：{0} MiB",
+    "RAM interfaccia: {0} MiB"
+  ],
+  [
+    "Cached thumbnails: {0}",
+    "Miniaturas en caché: {0}",
+    "Miniatures en cache : {0}",
+    "Zwischengespeicherte Miniaturen: {0}",
+    "Миниатюр в кэше: {0}",
+    "Miniatury w pamięci: {0}",
+    "キャッシュ済みサムネイル：{0}",
+    "缓存缩略图：{0}",
+    "Miniature in cache: {0}"
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _polish17_rows})

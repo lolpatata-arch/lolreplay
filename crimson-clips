@@ -271,7 +271,7 @@ def stop():
 
 
 def doctor(cfg):
-    print("=== LOLREPLAY 1.2.0 / DIAGNÓSTICO ===")
+    print("=== LOLREPLAY 1.7.0 / DIAGNÓSTICO ===")
     print("Compositor:", compositor.detect())
     print("Capture:", compositor.capture(cfg))
     print("Sesión:", os.environ.get("XDG_SESSION_TYPE", "(desconocida)"))
