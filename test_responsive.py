@@ -98,7 +98,7 @@ loader=importlib.machinery.SourceFileLoader('lr_ui','lolreplay-ui')
 spec=importlib.util.spec_from_loader(loader.name,loader); ui=importlib.util.module_from_spec(spec); loader.exec_module(ui)
 def contained(widget, parent):
     pos=widget.mapTo(parent,QPoint(0,0))
-    assert pos.x()>=0 and pos.y()>=0 and pos.x()+widget.width()<=parent.width()+2 and pos.y()+widget.height()<=parent.height()+2, (widget.objectName(),widget.size(),parent.size(),pos)
+    assert pos.x()>=0 and pos.y()>=0 and pos.x()+widget.width()<=parent.width()+2 and pos.y()+widget.height()<=parent.height()+2, (locale,scale,width,height,widget.objectName(),widget.size(),parent.size(),pos)
 
 sizes=((640,480),(800,600),(960,540),(1024,768),(1280,720),(1366,768),(1440,900),(1920,1080),(2560,1440),(3840,2160),(720,1280),(3440,1440))
 for locale in LANGUAGES:
@@ -124,6 +124,7 @@ for locale in LANGUAGES:
                 w.navigate(1); app.processEvents()
                 assert w.library_controls_scroll.isVisible() and w.library_controls_scroll.height()>0
                 assert w.library_split.minimumHeight()==0
+                assert w.compact_filters.isVisible()!=w.filter_panel.isVisible()
                 assert w.list.width()>0 and w.list.height()>0
                 contained(w.library_split,w.stack.currentWidget())
                 if w.player:

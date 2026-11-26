@@ -299,18 +299,21 @@ class Window(QMainWindow):
         for name,key in [(t('Newest first'),'newest'),(t('Oldest first'),'oldest'),(t('Largest first'),'largest'),(t('Name A–Z'),'name')]: self.sort.addItem(name,key)
         self.sort.setCurrentIndex(self.sort.findData(self.library_sort)); self.sort.currentIndexChanged.connect(self.change_sort); row.addWidget(self.sort); tools=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_tools=tools; self.search_count=label(clip_count(0),'muted'); tools.addWidget(self.search_count); tools.addStretch(); self.library_folder=decorate(button(t('Open folder'),self.open_folder),'folder'); self.library_refresh=decorate(button(t('Refresh'),lambda:self.refresh_library(force=True)),'refresh');
         for control,name in ((self.library_folder,t('Open folder')),(self.library_refresh,t('Refresh'))): control.setToolTip(name); control.setAccessibleName(name); tools.addWidget(control)
+        self.compact_filters=button(t('Filters'),self.open_filter_menu,'quiet'); self.compact_filters.hide(); tools.addWidget(self.compact_filters)
         row.addLayout(tools); v.addLayout(row)
+        self.filter_panel=QWidget(); filter_layout=QVBoxLayout(self.filter_panel); filter_layout.setContentsMargins(0,0,0,0); filter_layout.setSpacing(8)
         self.smart_filters=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_filter=QCheckBox(t('Favorites only')); self.favorite_filter.toggled.connect(lambda _:self.filter_library(self.search.text())); self.smart_filters.addWidget(self.favorite_filter)
-        self.game_filter=QComboBox(); self.game_filter.addItem(t('All games'),''); self.game_filter.setAccessibleName(t('Filter by game')); fit_combo(self.game_filter); self.game_filter.currentIndexChanged.connect(lambda _:self.filter_library(self.search.text())); self.smart_filters.addWidget(self.game_filter,1); v.addLayout(self.smart_filters)
+        self.game_filter=QComboBox(); self.game_filter.addItem(t('All games'),''); self.game_filter.setAccessibleName(t('Filter by game')); fit_combo(self.game_filter); self.game_filter.currentIndexChanged.connect(lambda _:self.filter_library(self.search.text())); self.smart_filters.addWidget(self.game_filter,1); filter_layout.addLayout(self.smart_filters)
         periods=QHBoxLayout(); self.date_filter=QComboBox(); self.date_filter.setAccessibleName(t('Filter by date')); fit_combo(self.date_filter)
         for name,days in [(t('Any date'),0),(t('Last 24 hours'),1),(t('Last 7 days'),7),(t('Last 30 days'),30)]: self.date_filter.addItem(name,days)
         self.length_filter=QComboBox(); self.length_filter.setAccessibleName(t('Filter by duration')); fit_combo(self.length_filter)
         for name,key in [(t('Any duration'),''),(t('Up to 30 sec'),'short'),(t('30 sec to 2 min'),'medium'),(t('Over 2 min'),'long')]: self.length_filter.addItem(name,key)
         for control in (self.date_filter,self.length_filter): control.currentIndexChanged.connect(lambda _:self.filter_library(self.search.text())); periods.addWidget(control,1)
-        v.addLayout(periods)
+        filter_layout.addLayout(periods); v.addWidget(self.filter_panel)
+        self.library_page_layout=v
         split=QSplitter(Qt.Orientation.Horizontal); self.library_split=split; split.setChildrenCollapsible(False)
         self.list=ResponsiveClipList(); self.list.setMinimumSize(120,100); self.setup_tiles(self.list,222); self.list.itemClicked.connect(self.click_clip); self.list.itemDoubleClicked.connect(self.double_click_clip); self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.list.customContextMenuRequested.connect(self.clip_menu); self.list.currentItemChanged.connect(self.select_clip); split.addWidget(self.list)
-        preview=panel(); preview.setObjectName('playerPane'); preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Expanding); pv=QVBoxLayout(preview); pv.setContentsMargins(8,0,8,4); pv.setSpacing(12); preview_heading=label(t('NOW VIEWING'),'eyebrow'); preview_heading.setWordWrap(True); preview_heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(preview_heading); self.preview_title=label(t('Select a clip'),'section'); self.preview_title.setWordWrap(False); self.preview_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(self.preview_title)
+        preview=panel(); preview.setObjectName('playerPane'); preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Expanding); pv=QVBoxLayout(preview); pv.setContentsMargins(8,0,8,4); pv.setSpacing(12); self.library_preview_layout=pv; preview_heading=label(t('NOW VIEWING'),'eyebrow'); preview_heading.setWordWrap(True); preview_heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(preview_heading); self.preview_heading=preview_heading; self.preview_title=label(t('Select a clip'),'section'); self.preview_title.setWordWrap(False); self.preview_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(self.preview_title)
         if MULTIMEDIA:
             self.video=ClickVideoWidget(); self.video.clicked.connect(lambda: self.play() if self.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(72); self.video.setStyleSheet('background:#050505'); self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(self.playback_volume/100); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); pv.addWidget(self.video,3)
         controls=QWidget(); cv=QVBoxLayout(controls); cv.setContentsMargins(0,0,4,0); cv.setSpacing(8)
@@ -321,6 +324,17 @@ class Window(QMainWindow):
             msg=label(t('Integrated playback unavailable. Open clips with your system player.'),'muted'); msg.setWordWrap(True); pv.addWidget(msg,1); self.play_btn=button(t('Play externally'),self.play,'primary'); cv.addWidget(self.play_btn)
         actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_actions=actions; self.external_btn=decorate(button(t('Open externally'),self.play_external),'external'); actions.addWidget(self.external_btn); self.edit_btn=decorate(button(t('Edit clip'),self.edit_selected),'edit'); self.edit_btn.setEnabled(False); actions.addWidget(self.edit_btn); cv.addLayout(actions); manage=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_manage=manage; self.rename_btn=decorate(button(t('Rename'),self.rename_selected,'quiet'),'rename'); self.trash_btn=decorate(button(t('Move to trash'),self.trash_selected,'quiet'),'trash'); self.rename_btn.setEnabled(False); self.trash_btn.setEnabled(False); manage.addWidget(self.rename_btn); manage.addWidget(self.trash_btn); cv.addLayout(manage); self.smart_actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_btn=button(t('Add favorite'),self.toggle_favorite,'quiet'); self.metadata_btn=button(t('Edit tags'),self.edit_metadata,'quiet'); self.favorite_btn.setEnabled(False); self.metadata_btn.setEnabled(False); self.smart_actions.addWidget(self.favorite_btn); self.smart_actions.addWidget(self.metadata_btn); cv.addLayout(self.smart_actions); self.metadata_label=label('','muted'); self.metadata_label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); cv.addWidget(self.metadata_label); cv.addStretch(); self.library_controls_scroll=PageScroll(controls); pv.addWidget(self.library_controls_scroll,2); self.play_btn.setEnabled(False); self.external_btn.setEnabled(False); split.addWidget(preview); split.setStretchFactor(0,5); split.setStretchFactor(1,6); split.setSizes([460,540]); v.addWidget(split,1)
         self.empty=label(self.hotkey_text('No clips yet. Start the replay and press F8.'),'muted'); v.addWidget(self.empty)
+
+    def open_filter_menu(self):
+        menu=QMenu(self.compact_filters)
+        favorite=menu.addAction(t('Favorites only')); favorite.setCheckable(True); favorite.setChecked(self.favorite_filter.isChecked()); favorite.toggled.connect(self.favorite_filter.setChecked)
+        for combo,title in ((self.game_filter,t('Filter by game')),(self.date_filter,t('Filter by date')),(self.length_filter,t('Filter by duration'))):
+            group=menu.addMenu(title)
+            for index in range(combo.count()):
+                action=group.addAction(combo.itemText(index)); action.setCheckable(True); action.setChecked(index==combo.currentIndex())
+                action.triggered.connect(lambda checked=False,c=combo,i=index:c.setCurrentIndex(i))
+        menu.addSeparator(); menu.addAction(t('Reset filters'),self.reset_library_filters)
+        menu.exec(self.compact_filters.mapToGlobal(self.compact_filters.rect().bottomLeft()))
 
     def click_clip(self,item):
         if item is not None and self.prefs['single_click_play']:
@@ -900,6 +914,11 @@ class Window(QMainWindow):
         self.art.setMinimumHeight(160 if compact else 240)
         self.recent.setMinimumHeight(155 if compact else 170)
         self.library_toolbar.setDirection(QBoxLayout.Direction.LeftToRight)
+        self.filter_panel.setVisible(not compact); self.compact_filters.setVisible(compact)
+        self.library_page_layout.setSpacing(6 if compact else 15)
+        self.library_preview_layout.setSpacing(4 if compact else 12); self.preview_heading.setVisible(not compact)
+        if self.player: self.video.setMinimumHeight(36 if compact else 72)
+        self.editor.set_compact(compact)
         self.search_count.setVisible(not compact)
         for control in (self.library_folder,self.library_refresh): control.setText('' if compact else control.accessibleName())
         for row in (self.library_actions,self.library_manage,self.smart_actions): row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)

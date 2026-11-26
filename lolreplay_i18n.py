@@ -3598,3 +3598,5 @@ _polish17_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _polish17_rows})
+
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Filters","Filtros","Filtres","Filter","Фильтры","Filtry","フィルター","筛选","Filtri"],["Reset filters","Restablecer filtros","Réinitialiser les filtres","Filter zurücksetzen","Сбросить фильтры","Resetuj filtry","フィルターをリセット","重置筛选","Reimposta filtri"]] if row[0] not in CATALOG})

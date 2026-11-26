@@ -155,7 +155,7 @@ class Editor(QWidget):
         main=QVBoxLayout(self); main.setContentsMargins(0,0,0,0); main.setSpacing(12)
         top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=fit_combo(QComboBox()); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
         self.title=lab(t('No clip selected'),'muted'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
-        area=QSplitter(Qt.Orientation.Horizontal); self.area=area; area.setChildrenCollapsible(False); left=QFrame(); left.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); left.setMinimumSize(120,150); left.setObjectName('feature'); l=QVBoxLayout(left); l.setContentsMargins(0,0,0,0); l.setSpacing(9)
+        area=QSplitter(Qt.Orientation.Horizontal); self.area=area; area.setChildrenCollapsible(False); left=QFrame(); left.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); left.setMinimumSize(120,150); left.setObjectName('feature'); self.left_pane=left; l=QVBoxLayout(left); self.left_layout=l; l.setContentsMargins(0,0,0,0); l.setSpacing(9)
         if MEDIA:
             self.video=ClickVideoWidget(); self.video.clicked.connect(lambda:self.play_selection() if self.window.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(72); self.video.setStyleSheet('background:#050505'); l.addWidget(self.video,3)
             self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(.45); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); self.player.positionChanged.connect(self.position); self.player.playbackStateChanged.connect(self.play_state); self.player.errorOccurred.connect(lambda e,m:self.note.setText(t('Preview: ')+m))
@@ -190,6 +190,10 @@ class Editor(QWidget):
         self.export_duration=lab('','muted'); r.addWidget(self.export_duration); self.replace_original=QCheckBox(t('Replace original')); r.addWidget(self.replace_original)
         hint=lab(t('Exports a new copy by default. Multitrack originals are always kept.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Export clip'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
         self.note=lab(window.hotkey_text('Save a clip with F8 to start editing.'),'muted'); self.note.setWordWrap(True); self.note.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.note); self.controls()
+    def set_compact(self,compact):
+        self.left_pane.setMinimumHeight(105 if compact else 150); self.left_layout.setSpacing(4 if compact else 9)
+        if self.player: self.video.setMinimumHeight(36 if compact else 72)
+
     def set_stacked(self, stacked):
         orientation=Qt.Orientation.Vertical if stacked else Qt.Orientation.Horizontal
         if self.area.orientation()!=orientation:
