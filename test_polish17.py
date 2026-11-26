@@ -7,9 +7,9 @@ ROOT=Path(__file__).resolve().parent
 
 class PolishTests(unittest.TestCase):
     def test_versions(self):
-        self.assertEqual(u.VERSION,'1.7.0')
-        self.assertIn("print('lolreplay 1.7.0')",(ROOT/'lolreplay').read_text())
-        self.assertIn("setApplicationVersion('1.7.0')",(ROOT/'lolreplay-ui').read_text())
+        self.assertEqual(u.VERSION,'1.7.1')
+        self.assertIn("print('lolreplay 1.7.1')",(ROOT/'lolreplay').read_text())
+        self.assertIn("setApplicationVersion('1.7.1')",(ROOT/'lolreplay-ui').read_text())
     def test_tray_opt_in(self):
         self.assertFalse(p.validated({})['close_to_tray'])
         self.assertTrue(p.validated({'close_to_tray':True})['close_to_tray'])

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.1 — Replay backgrounds (development)
+
+- Classic logo plus five static logo-based wallpapers: Crimson Glow, AMOLED Minimal, Midnight Orbit, Cyber Grid and Crimson Horizon.
+- Choose the latest clip or a local still image; persist selection in UI settings and fall back to classic logo if unavailable.
+- Appearance preview and quick right-click menu; bounded image decoding and cached static presets, no live wallpapers or new dependencies.
+- Latest-clip artwork can request its thumbnail even with general library thumbnails disabled.
+- Desktop validation pending.
+
 ## 1.7.0 — Performance & Polish (2026-11-26)
 
 - Consolidate smart library, automatic audio tracks, editor and game detection from 1.3–1.6.

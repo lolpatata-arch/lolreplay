@@ -105,6 +105,10 @@ for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
         assert w.settings_stack.count()==11
+        assert w.background_choice.count()==8
+        for mode in ui.backgrounds.STYLES:
+            w.save_background(mode); assert not w.art.selected_art().isNull(), mode
+        w.save_background('logo'); assert w.art.selected_art() is None
         assert set(w.key_fields)==set(LABELS), (set(w.key_fields),set(LABELS))
         assert set(w.pref_controls)==set(OPTIONS), (set(w.pref_controls),set(OPTIONS))
         w.prefs['thumbnails']=False

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""lolreplay 1.7.0: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.7.1: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
 import re
 import lolreplay_preferences as prefs
+import lolreplay_backgrounds as backgrounds
 import lolreplay_shortcuts as keys
 import os
 from lolreplay_i18n import t, clip_count, LANGUAGES, set_language, language
@@ -118,9 +119,17 @@ class ClipDelegate(QStyledItemDelegate):
 
 class Artwork(QWidget):
     def __init__(self, window):
-        super().__init__(); self.window=window; self.pix=None; self.setMinimumHeight(185); self.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
+        super().__init__(); self.window=window; self.pix=None; self.custom_pix=QPixmap(); self.wallpapers={}; self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.customContextMenuRequested.connect(window.background_menu); self.setMinimumHeight(185); self.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
     def set_art(self,pix):
         self.pix=pix; self.update()
+    def selected_art(self):
+        mode=self.window.replay_background['mode']
+        if mode=='last_clip': return self.pix
+        if mode=='image': return self.custom_pix
+        if mode in backgrounds.STYLES:
+            if mode not in self.wallpapers: self.wallpapers[mode]=backgrounds.preset(mode,self.window.logo)
+            return self.wallpapers[mode]
+        return None
     def mouseReleaseEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()) and self.window.snapshot:
             self.window.open_latest(); event.accept(); return
@@ -129,9 +138,10 @@ class Artwork(QWidget):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         r=self.rect(); clip=QPainterPath(); clip.addRoundedRect(QRectF(r),10,10); p.setClipPath(clip)
         bg,panel,border,accent,bright=THEMES[self.window.theme]
-        if self.pix is not None and not self.pix.isNull():
-            im=self.pix.scaled(r.size(),Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
-            p.drawPixmap((r.width()-im.width())//2,(r.height()-im.height())//2,im)
+        selected=self.selected_art()
+        if selected is not None and not selected.isNull():
+            backgrounds.cover(p,r,selected)
+            if self.window.replay_background['mode']=='image': p.fillRect(r,QColor(0,0,0,35))
         else:
             w=r.width(); h=r.height()
             # A static, theme-aware recording instrument, not a decorative animation.
@@ -188,7 +198,7 @@ class Window(QMainWindow):
         self.logo=QIcon(str(icon)); self.player=None; self.preview_path=None; self.recent_buttons=[]
         self.setWindowIcon(QIcon(str(icon)))
         self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
-        preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Crimson Red')
+        preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Crimson Red'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
         self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences'))
         raw_volume=preferences.get('playback_volume',45)
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
@@ -211,7 +221,7 @@ class Window(QMainWindow):
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.0','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.7.1','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
         topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
@@ -242,7 +252,7 @@ class Window(QMainWindow):
         workspace=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.overview_layout=workspace; workspace.setSpacing(16); left=QVBoxLayout(); self.overview_content=left; left.setSpacing(11)
         heading=QHBoxLayout(); heading.addWidget(label(t('Latest capture'),'section')); heading.addStretch(); heading.addWidget(decorate(button(t('All clips'),lambda:self.navigate(1),'quiet'),'arrow')); left.addLayout(heading)
         feature=panel(); feature.setObjectName('feature'); fv=QVBoxLayout(feature); fv.setContentsMargins(0,0,0,6); fv.setSpacing(8)
-        self.art=Artwork(self); self.art.setMinimumHeight(170); fv.addWidget(self.art,1)
+        self.art=Artwork(self); self.art.custom_pix=backgrounds.load_image(self.replay_background['path']) if self.replay_background['mode']=='image' else QPixmap(); self.art.setMinimumHeight(170); fv.addWidget(self.art,1)
         details=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.latest_details=details; details.setContentsMargins(6,2,6,0); info=QVBoxLayout(); info.setSpacing(3)
         self.latest_title=label(t('No recordings yet'),'section'); self.latest_title.setWordWrap(True); self.latest_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); info.addWidget(self.latest_title)
         self.latest_meta=label(self.hotkey_text('Start replay, then press F8 to save a clip.'),'muted'); self.latest_meta.setWordWrap(True); info.addWidget(self.latest_meta); details.addLayout(info,1)
@@ -286,7 +296,7 @@ class Window(QMainWindow):
 
     def update_latest(self):
         key=self.snapshot[0] if self.snapshot else None
-        self.latest_btn.setEnabled(bool(key)); self.latest_edit.setEnabled(bool(key)); self.art.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor); self.art.setToolTip(t('Watch latest clip') if key else '')
+        self.latest_btn.setEnabled(bool(key)); self.latest_edit.setEnabled(bool(key)); self.art.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor); self.art.setToolTip((t('Watch latest clip')+' · ' if key else '')+t('Right-click to change replay background'))
         if key:
             path,mtime,size=key; self.latest_title.setText(Path(path).stem); self.latest_meta.setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(mtime//1000000),'dd MMM · HH:mm')+f'  ·  {size/1024**2:.1f} MB  ·  '+t('Click preview to watch')); self.art.setMaximumHeight(16777215); self.art.set_art(self.thumbs.get(key))
         else:
@@ -629,6 +639,59 @@ class Window(QMainWindow):
         for control, setter in ((self.settings_list,self.settings_list.setCurrentRow),(self.settings_selector,self.settings_selector.setCurrentIndex)):
             old=control.blockSignals(True); setter(index); control.blockSignals(old)
 
+    def background_menu(self,pos):
+        menu=QMenu(self.art)
+        for mode in backgrounds.MODES:
+            action=menu.addAction(t(backgrounds.LABELS[mode])); action.setCheckable(True); action.setChecked(mode==self.replay_background['mode'])
+            action.triggered.connect(lambda checked=False,m=mode:self.choose_background(m))
+        menu.exec(self.art.mapToGlobal(pos))
+
+    def choose_background(self,mode):
+        if mode=='image':
+            path,_=QFileDialog.getOpenFileName(self,t('Choose background image'),str(Path.home()),'Images (*.png *.jpg *.jpeg *.webp *.bmp)')
+            if not path: return
+            pix=backgrounds.load_image(path)
+            if pix.isNull():
+                self.message.setText(t('Image could not be loaded. Choose a supported image under 32 MB and 64 megapixels.')); return
+            self.save_background(mode,path,pix)
+        else: self.save_background(mode,self.replay_background['path'])
+
+    def save_background(self,mode,path='',pix=None):
+        value=backgrounds.validated({'mode':mode,'path':path})
+        try: write_ui({**read_json(UI_CONFIG),'replay_background':value})
+        except OSError as exc: self.message.setText(str(exc)); return
+        self.replay_background=value
+        self.art.custom_pix=pix if pix is not None else (backgrounds.load_image(path) if mode=='image' else QPixmap())
+        self.sync_background_controls(); self.art.update()
+        if mode=='last_clip': self.refresh_library(force=True); self.next_thumbnail()
+
+    def sync_background_controls(self):
+        if not hasattr(self,'background_choice'): return
+        mode=self.replay_background['mode']; old=self.background_choice.blockSignals(True)
+        self.background_choice.setCurrentIndex(self.background_choice.findData(mode)); self.background_choice.blockSignals(old)
+        self.background_path.setText(Path(self.replay_background['path']).name if mode=='image' else '')
+        self.background_path.setToolTip(self.replay_background['path'] if mode=='image' else '')
+        self.background_path.setVisible(mode=='image')
+        self.background_preview.setPixmap(self.background_preview_pix())
+        self.background_missing.setVisible(mode=='image' and self.art.custom_pix.isNull())
+
+    def background_preview_pix(self):
+        pix=QPixmap(320,120); pix.fill(QColor('#0b0b0d')); p=QPainter(pix); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        selected=self.art.selected_art()
+        if selected is not None and not selected.isNull(): backgrounds.cover(p,pix.rect(),selected)
+        else:
+            logo=self.logo.pixmap(QSize(92,92)); p.drawPixmap((320-logo.width())//2,(120-logo.height())//2,logo)
+        p.end(); return pix
+
+    def background_changed(self,*_):
+        mode=self.background_choice.currentData()
+        if mode is None: return
+        if mode=='image' and self.replay_background['path']:
+            pix=backgrounds.load_image(self.replay_background['path'])
+            if not pix.isNull(): self.save_background(mode,self.replay_background['path'],pix); return
+        self.choose_background(mode)
+        self.sync_background_controls()
+
     def build_settings(self):
         v=self.page(t('Settings'),'',scroll=False)
         self.settings_selector=fit_combo(QComboBox()); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
@@ -649,6 +712,15 @@ class Window(QMainWindow):
             self.theme_samples[name]=(sample,nav,line,block)
             choose=button(name,lambda checked=False,name=name:self.set_theme(name),'duration'); choose.setCheckable(True); choose.setChecked(name==self.theme); self.theme_buttons[name]=choose; theme_layout.addWidget(choose); self.theme_tiles.append(tile); choices.addWidget(tile,i//3,i%3)
         v.addLayout(choices)
+        wallpaper=panel(); wl=QVBoxLayout(wallpaper); wl.setContentsMargins(14,12,14,12)
+        wl.addWidget(label(t('Replay background'),'section')); self.background_choice=fit_combo(QComboBox()); self.background_choice.setAccessibleName(t('Replay background'))
+        for mode in backgrounds.MODES: self.background_choice.addItem(t(backgrounds.LABELS[mode]),mode)
+        wl.addWidget(self.background_choice); self.background_preview=QLabel(); self.background_preview.setAlignment(Qt.AlignmentFlag.AlignCenter); self.background_preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.background_preview.setFixedHeight(120); wl.addWidget(self.background_preview)
+        self.background_path=label('','muted'); self.background_path.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); wl.addWidget(self.background_path)
+        self.background_missing=label(t('Image unavailable. Showing the classic logo.'),'muted'); wl.addWidget(self.background_missing)
+        wl.addWidget(button(t('Choose background image'),lambda:self.choose_background('image')))
+        wl.addWidget(label(t('Static backgrounds only. Right-click the Replay artwork to change it.'),'muted'))
+        v.addWidget(wallpaper); self.sync_background_controls(); self.background_choice.currentIndexChanged.connect(self.background_changed)
         custom=panel(); cl=QVBoxLayout(custom); cl.setContentsMargins(14,12,14,12); cl.addWidget(label(t('Custom palette'),'section')); cl.addWidget(label(t('Choose dark background, surfaces and accent. Changes apply immediately.'),'muted')); cr=self.settings_row(); self.custom_buttons={}
         for key,title in [('bg',t('Background')),('surface',t('Panels')),('accent',t('Accent')),('border',t('Borders'))]:
             b=button(title,lambda checked=False,key=key:self.pick_color(key)); self.custom_buttons[key]=b; cr.addWidget(b)
@@ -748,7 +820,7 @@ class Window(QMainWindow):
             view.set_tile_metrics(width,round(64*factor))
         if hasattr(self,'timer'):
             self.timer.setInterval(self.prefs['refresh_ms']); self.application_state_changed(QApplication.instance().applicationState())
-        if not self.prefs['thumbnails'] and self.thumb.state()!=QProcess.ProcessState.NotRunning: self.thumb.kill()
+        if not self.prefs['thumbnails'] and self.replay_background['mode']!='last_clip' and self.thumb.state()!=QProcess.ProcessState.NotRunning: self.thumb.kill()
         if refresh: self.refresh_library(force=True)
 
     def change_language(self):
@@ -1158,7 +1230,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.7.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.7.1 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1331,7 +1403,7 @@ class Window(QMainWindow):
         except (OSError,sqlite3.Error) as exc: self.message.setText(t('Library metadata unavailable')+': '+str(exc))
         self.probe_failed.intersection_update(files); self.probe_queue=[key for key in files if key[2]>0 and key not in self.durations and key not in self.probe_failed and key!=self.probe_current]
         self.refresh_game_filter()
-        self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys} if self.prefs['thumbnails'] else {}
+        self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and files and k==files[0]))}
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
         recent_paths={f[0]:i for i,f in enumerate(files[1:7])}; recent_items={}
         for index,key in enumerate(ordered):
@@ -1339,7 +1411,7 @@ class Window(QMainWindow):
             pix=self.thumbs.get(key); item.setIcon(QIcon(pix) if pix is not None else self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)); self.list.addItem(item)
             if path in recent_paths: recent_items[recent_paths[path]]=item.clone()
             if path==selected: self.list.setCurrentItem(item)
-            if self.prefs['thumbnails'] and pix is None and size>0 and key!=self.thumb_current: self.thumb_queue.append(key)
+            if (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and key==files[0])) and pix is None and size>0 and key!=self.thumb_current: self.thumb_queue.append(key)
         for i in sorted(recent_items): self.recent.addItem(recent_items[i])
         self.list.blockSignals(False); self.filter_library(self.search.text()); self.select_clip(self.list.currentItem()); self.update_latest(); self.editor.update_clips(files,self.thumbs)
         if self.stack.currentIndex()==2: self.editor.select_latest()
@@ -1347,7 +1419,7 @@ class Window(QMainWindow):
 
     def next_thumbnail(self):
         if not self.foreground() or getattr(self,'closing',False) or self.editor.busy() or any(p.state()!=QProcess.ProcessState.NotRunning for p in (self.thumb,self.probe,self.editor.strip_proc)): return
-        thumb_ready=self.prefs['thumbnails'] and bool(self.thumb_queue) and shutil.which('ffmpeg')
+        thumb_ready=(self.prefs['thumbnails'] or self.replay_background['mode']=='last_clip') and bool(self.thumb_queue) and shutil.which('ffmpeg')
         if self.probe_queue and shutil.which('ffprobe') and (self.length_filter.currentData() or not thumb_ready):
             self.probe_current=self.probe_queue.pop(0); path=self.probe_current[0]
             cmd=['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',path]
@@ -1363,11 +1435,13 @@ class Window(QMainWindow):
         cmd=perf.thumbnail_command(path); self.thumb.start(cmd[0],cmd[1:]); self.thumb_watch.start(10000)
 
     def apply_thumbnail(self,key,pix):
-        if not self.prefs['thumbnails'] or key not in (self.snapshot or []): return
+        if key not in (self.snapshot or []) or not (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and key==self.snapshot[0])): return
         self.thumbs[key]=pix
         if len(self.thumbs)>256: self.thumbs.pop(next(iter(self.thumbs)))
         self.editor.update_thumbnail(key[0],pix)
-        if self.snapshot and key==self.snapshot[0]: self.update_latest()
+        if self.snapshot and key==self.snapshot[0]:
+            self.update_latest()
+            if self.replay_background['mode']=='last_clip': self.sync_background_controls()
         for view in (self.list,self.recent):
             for i in range(view.count()):
                 it=view.item(i)
@@ -1376,7 +1450,7 @@ class Window(QMainWindow):
     def thumbnail_done(self,code,exit_status):
         self.thumb_watch.stop(); data=bytes(self.thumb.readAllStandardOutput()); self.thumb.readAllStandardError(); key=self.thumb_current; self.thumb_current=None
         pix=QPixmap()
-        if self.prefs['thumbnails'] and key and code==0 and pix.loadFromData(data,'PNG') and key in (self.snapshot or []):
+        if key and code==0 and pix.loadFromData(data,'PNG') and key in (self.snapshot or []) and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and key==self.snapshot[0])):
             try: self.library_db.save_thumbnail(key,data)
             except (OSError,sqlite3.Error): pass
             self.apply_thumbnail(key,pix)
@@ -1448,7 +1522,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 1.7.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 1.7.1 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -1497,4 +1571,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.7.1'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
