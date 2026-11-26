@@ -39,3 +39,13 @@ def layout_mode(width, height, text_scale=100):
     factor = text_scale / 100
     w, h = width / factor, height / factor
     return w < 1180 or h < 740, w < 1000, w < 1140, w < 1040
+
+
+def media_stacked(width, height, text_scale=100):
+    """Use columns on short landscape screens; stack on tall/narrow windows.
+
+    Inputs are logical workspace dimensions, after navigation and header space.
+    """
+    scale = text_scale / 100
+    w, h = width / scale, height / scale
+    return w < 400 or (w < 820 and h >= 580)

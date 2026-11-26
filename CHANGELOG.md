@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — Layout stability
+
+- Isolate hidden-page size hints from the active workspace.
+- Adapt library and editor splitters to usable logical width and height; preserve manually adjusted split sizes until orientation changes.
+- Keep native video outside scroll areas; allow smaller video and controls, and bound long combo-box text.
+- Reflow controls and theme tiles on compact windows.
+- Expand the release test matrix; live Qt/Wayland verification is required before stable release.
+- Recording, audio, storage and export logic unchanged.
+
 ## 1.0.4 — Library layout hotfix
 
 - Keep library playback outside scroll areas, with a separate scrollable playback and management controls panel.

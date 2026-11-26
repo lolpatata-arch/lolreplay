@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 1.0.4: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 1.1.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import re
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
-from lolreplay_widgets import PageScroll, SeekSlider, ResponsiveClipList, toggle_row
+from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo
 import lolreplay_storage as storage
 import lolreplay_audio as audio
 import lolreplay_drives as drives
@@ -191,11 +191,11 @@ class Window(QMainWindow):
         root=QWidget(); self.setCentralWidget(root); outer=QHBoxLayout(root); outer.setContentsMargins(0,0,0,0); outer.setSpacing(0)
         sidebar=QFrame(); sidebar.setObjectName('sidebar'); self.sidebar=sidebar; sidebar.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding); side=QVBoxLayout(sidebar); self.side_layout=side; side.setContentsMargins(14,23,14,18); side.setSpacing(4)
         brandrow=QHBoxLayout(); brandrow.setSpacing(10); mark=QLabel(); mark.setPixmap(self.logo.pixmap(QSize(40,40))); brandrow.addWidget(mark); brand=QVBoxLayout(); brand.setSpacing(1); self.brand_name=label('lolreplay','brand'); brand.addWidget(self.brand_name); self.brand_meta=label('local • wayland','muted'); brand.addWidget(self.brand_meta);  brandrow.addLayout(brand); brandrow.addStretch(); side.addLayout(brandrow); side.addSpacing(18)
-        self.stack=QStackedWidget(); self.nav=[]; self.nav_names=[]
+        self.stack=PageStack(); self.nav=[]; self.nav_names=[]
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); side.addWidget(b)
-        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.0.4','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
-        body=QWidget(); col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
+        side.addStretch(); self.side_rule=self.rule(); side.addWidget(self.side_rule); side.addSpacing(8); self.footer_label=label(t('LOCAL ONLY'),'eyebrow'); side.addWidget(self.footer_label); self.footer_meta=label('v1.1.0','muted'); side.addWidget(self.footer_meta); outer.addWidget(sidebar)
+        body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(28,14,28,12); col.setSpacing(15)
         topbar=QFrame(); topbar.setObjectName('topbar'); top=QHBoxLayout(topbar); top.setContentsMargins(0,3,0,9); self.breadcrumb=label(t('Capture'),'eyebrow'); top.addWidget(self.breadcrumb); top.addStretch(); self.top_duration=label(self.global_key or '—','key'); top.addWidget(self.top_duration); self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths); self.state_dot=QLabel(); self.state_dot.setFixedSize(9,9); self.state_dot.setAccessibleName(t('Recorder status indicator')); top.addSpacing(10); top.addWidget(self.state_dot); self.state=label(t('Checking…'),'status'); top.addWidget(self.state); col.addWidget(topbar)
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); col.addWidget(self.message); outer.addWidget(body,1)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
@@ -225,7 +225,7 @@ class Window(QMainWindow):
         heading=QHBoxLayout(); heading.addWidget(label(t('Latest capture'),'section')); heading.addStretch(); heading.addWidget(decorate(button(t('All clips'),lambda:self.navigate(1),'quiet'),'arrow')); left.addLayout(heading)
         feature=panel(); feature.setObjectName('feature'); fv=QVBoxLayout(feature); fv.setContentsMargins(0,0,0,6); fv.setSpacing(8)
         self.art=Artwork(self); self.art.setMinimumHeight(170); fv.addWidget(self.art,1)
-        details=QHBoxLayout(); details.setContentsMargins(6,2,6,0); info=QVBoxLayout(); info.setSpacing(3)
+        details=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.latest_details=details; details.setContentsMargins(6,2,6,0); info=QVBoxLayout(); info.setSpacing(3)
         self.latest_title=label(t('No recordings yet'),'section'); self.latest_title.setWordWrap(True); self.latest_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); info.addWidget(self.latest_title)
         self.latest_meta=label(self.hotkey_text('Start replay, then press F8 to save a clip.'),'muted'); self.latest_meta.setWordWrap(True); info.addWidget(self.latest_meta); details.addLayout(info,1)
         self.latest_edit=decorate(button(t('Edit clip'),self.edit_latest),'edit'); self.latest_edit.setEnabled(False); details.addWidget(self.latest_edit); self.latest_btn=decorate(button(t('Watch'),self.open_latest,'primary'),'play','#ffffff'); self.latest_btn.setEnabled(False); details.addWidget(self.latest_btn); fv.addLayout(details); left.addWidget(feature,3)
@@ -277,14 +277,16 @@ class Window(QMainWindow):
     def build_library(self):
         # Keep native video outside any scroll area, as in the editor.
         v=self.page(t('Clips'),'',scroll=False)
-        row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_toolbar=row; self.search=QLineEdit(); self.search.setPlaceholderText(t('Search clips…')); self.search.setClearButtonEnabled(True); self.search.setAccessibleName(t('Search clips')); self.search.textChanged.connect(self.filter_library); row.addWidget(self.search,1); self.sort=QComboBox(); self.sort.setAccessibleName(t('Sort clips')); self.sort.setMinimumWidth(150);
+        row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_toolbar=row; self.search=QLineEdit(); self.search.setPlaceholderText(t('Search clips…')); self.search.setClearButtonEnabled(True); self.search.setAccessibleName(t('Search clips')); self.search.textChanged.connect(self.filter_library); row.addWidget(self.search,1); self.sort=QComboBox(); self.sort.setToolTip(t('Sort clips')); self.sort.setAccessibleName(t('Sort clips')); fit_combo(self.sort);
         for name,key in [(t('Newest first'),'newest'),(t('Oldest first'),'oldest'),(t('Largest first'),'largest'),(t('Name A–Z'),'name')]: self.sort.addItem(name,key)
-        self.sort.setCurrentIndex(self.sort.findData(self.library_sort)); self.sort.currentIndexChanged.connect(self.change_sort); row.addWidget(self.sort); tools=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_tools=tools; self.search_count=label(clip_count(0),'muted'); tools.addWidget(self.search_count); tools.addStretch(); tools.addWidget(decorate(button(t('Open folder'),self.open_folder),'folder')); tools.addWidget(decorate(button(t('Refresh'),lambda:self.refresh_library(force=True)),'refresh')); row.addLayout(tools); v.addLayout(row)
+        self.sort.setCurrentIndex(self.sort.findData(self.library_sort)); self.sort.currentIndexChanged.connect(self.change_sort); row.addWidget(self.sort); tools=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_tools=tools; self.search_count=label(clip_count(0),'muted'); tools.addWidget(self.search_count); tools.addStretch(); self.library_folder=decorate(button(t('Open folder'),self.open_folder),'folder'); self.library_refresh=decorate(button(t('Refresh'),lambda:self.refresh_library(force=True)),'refresh');
+        for control,name in ((self.library_folder,t('Open folder')),(self.library_refresh,t('Refresh'))): control.setToolTip(name); control.setAccessibleName(name); tools.addWidget(control)
+        row.addLayout(tools); v.addLayout(row)
         split=QSplitter(Qt.Orientation.Horizontal); self.library_split=split; split.setChildrenCollapsible(False)
         self.list=ResponsiveClipList(); self.list.setMinimumSize(120,100); self.setup_tiles(self.list,222); self.list.itemClicked.connect(self.click_clip); self.list.itemDoubleClicked.connect(self.double_click_clip); self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.list.customContextMenuRequested.connect(self.clip_menu); self.list.currentItemChanged.connect(self.select_clip); split.addWidget(self.list)
-        preview=panel(); preview.setObjectName('playerPane'); preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Expanding); pv=QVBoxLayout(preview); pv.setContentsMargins(8,0,8,4); pv.setSpacing(12); preview_heading=label(t('NOW VIEWING'),'eyebrow'); preview_heading.setWordWrap(True); preview_heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(preview_heading); self.preview_title=label(t('Select a clip'),'section'); self.preview_title.setWordWrap(True); self.preview_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(self.preview_title)
+        preview=panel(); preview.setObjectName('playerPane'); preview.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Expanding); pv=QVBoxLayout(preview); pv.setContentsMargins(8,0,8,4); pv.setSpacing(12); preview_heading=label(t('NOW VIEWING'),'eyebrow'); preview_heading.setWordWrap(True); preview_heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(preview_heading); self.preview_title=label(t('Select a clip'),'section'); self.preview_title.setWordWrap(False); self.preview_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); pv.addWidget(self.preview_title)
         if MULTIMEDIA:
-            self.video=ClickVideoWidget(); self.video.clicked.connect(lambda: self.play() if self.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(105); self.video.setStyleSheet('background:#050505'); self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(self.playback_volume/100); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); pv.addWidget(self.video,3)
+            self.video=ClickVideoWidget(); self.video.clicked.connect(lambda: self.play() if self.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(72); self.video.setStyleSheet('background:#050505'); self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(self.playback_volume/100); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); pv.addWidget(self.video,3)
         controls=QWidget(); cv=QVBoxLayout(controls); cv.setContentsMargins(0,0,4,0); cv.setSpacing(8)
         if MULTIMEDIA:
             self.seek=SeekSlider(); self.seek.setRange(0,0); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.seekRequested.connect(self.player.setPosition); self.player.positionChanged.connect(self.update_position); self.player.durationChanged.connect(self.update_duration); self.player.errorOccurred.connect(self.player_error); self.player.playbackStateChanged.connect(self.update_play_state); cv.addWidget(self.seek)
@@ -441,7 +443,7 @@ class Window(QMainWindow):
 
     def select_clip(self,item,previous=None):
         path=item.data(Qt.ItemDataRole.UserRole) if item else None
-        self.preview_title.setText(Path(path).stem if path else t('Select a clip')); self.play_btn.setEnabled(bool(path)); self.external_btn.setEnabled(bool(path))
+        self.preview_title.setText(Path(path).stem if path else t('Select a clip')); self.preview_title.setToolTip(path or t('Select a clip')); self.play_btn.setEnabled(bool(path)); self.external_btn.setEnabled(bool(path))
         for b in (self.edit_btn,self.rename_btn,self.trash_btn): b.setEnabled(bool(path))
         if self.player: self.full_btn.setEnabled(bool(path))
         if path!=self.preview_path and self.player:
@@ -545,11 +547,11 @@ class Window(QMainWindow):
 
     def build_settings(self):
         v=self.page(t('Settings'),'',scroll=False)
-        self.settings_selector=QComboBox(); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
+        self.settings_selector=fit_combo(QComboBox()); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
         settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setAccessibleName(t('Settings')); self.settings_list.setWordWrap(True); self.settings_list.setMaximumWidth(220); self.settings_list.setMinimumWidth(170); settings_area.addWidget(self.settings_list)
-        tabs=QStackedWidget(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
+        tabs=PageStack(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
         v=self.settings_tab(tabs,t('Appearance'))
-        langrow=self.settings_row(); langrow.addWidget(label(t('Interface language'),'section')); self.language_selector=QComboBox(); self.language_selector.setMinimumWidth(140)
+        langrow=self.settings_row(); langrow.addWidget(label(t('Interface language'),'section')); self.language_selector=QComboBox(); fit_combo(self.language_selector)
         for code,name in LANGUAGES.items(): self.language_selector.addItem(name,code)
         self.language_selector.setCurrentIndex(self.language_selector.findData(language())); self.language_selector.currentIndexChanged.connect(self.change_language); langrow.addWidget(self.language_selector); v.addLayout(langrow)
         v.addWidget(label(t('Theme presets'),'section'))
@@ -789,13 +791,18 @@ class Window(QMainWindow):
         scale=self.prefs['text_scale']/100
         compact,narrow,settings_compact,row_compact=prefs.layout_mode(self.width(),self.height(),self.prefs['text_scale'])
         tiny=self.width()/scale<700
-        mode=(compact,narrow,settings_compact,row_compact,scale,tiny)
+        # Use the usable workspace, not the physical monitor resolution.
+        side_width=round(62*scale) if compact else max(round(188*scale),max(b.fontMetrics().horizontalAdvance(name) for b,name in zip(self.nav,self.nav_names))+78)
+        content_width=max(1,self.width()-side_width-(24 if compact else 56))
+        content_height=max(1,self.height()-(110 if compact else 140))
+        stacked=prefs.media_stacked(content_width,content_height,self.prefs['text_scale'])
+        mode=(compact,narrow,settings_compact,row_compact,scale,tiny,stacked)
         if mode==self._layout_mode and not force: return
         previous=self._layout_mode; self._layout_mode=mode
         for b,name in zip(self.nav,self.nav_names): b.setText('' if compact else name)
         for w in (self.brand_name,self.brand_meta,self.footer_label,self.footer_meta,self.side_rule): w.setVisible(not compact)
         self.side_layout.setContentsMargins(8,12,8,8) if compact else self.side_layout.setContentsMargins(14,23,14,18)
-        self.sidebar.setFixedWidth(round(62*scale) if compact else max(round(188*scale),max(b.sizeHint().width() for b in self.nav)+32))
+        self.sidebar.setFixedWidth(side_width)
         self.body_layout.setContentsMargins(12,8,12,8) if compact else self.body_layout.setContentsMargins(28,14,28,12)
         self.body_layout.setSpacing(8 if compact else 15)
         self.breadcrumb.setVisible(not narrow); self.top_duration.setVisible(not narrow)
@@ -806,30 +813,33 @@ class Window(QMainWindow):
             self.overview_layout.removeWidget(self.overview_rail)
             if narrow: self.overview_layout.insertWidget(0,self.overview_rail)
             else: self.overview_layout.addWidget(self.overview_rail)
-        self.editor.area.setDirection(direction)
-        for rail in (self.overview_rail,self.editor.rail):
+        self.editor.set_stacked(stacked)
+        self.latest_details.setDirection(QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight)
+        for rail in (self.overview_rail,):
             rail.setMinimumWidth(0); rail.setMaximumWidth(16777215)
             if not narrow:
                 rail.setFixedWidth(round((300 if compact else 330)*scale))
         self.art.setMinimumHeight(160 if compact else 240)
         self.recent.setMinimumHeight(155 if compact else 170)
-        self.library_toolbar.setDirection(direction)
-        for row in (self.library_tools,self.library_actions,self.library_manage): row.setDirection(QBoxLayout.Direction.TopToBottom if tiny else QBoxLayout.Direction.LeftToRight)
-        self.editor.controls_row.setDirection(QBoxLayout.Direction.TopToBottom if tiny else QBoxLayout.Direction.LeftToRight)
+        self.library_toolbar.setDirection(QBoxLayout.Direction.LeftToRight)
+        self.search_count.setVisible(not compact)
+        for control in (self.library_folder,self.library_refresh): control.setText('' if compact else control.accessibleName())
+        for row in (self.library_actions,self.library_manage): row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.editor.controls_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
         if hasattr(self,'player_controls'): self.player_controls.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
-        if previous is None or previous[1]!=narrow:
-            self.library_split.setOrientation(Qt.Orientation.Vertical if narrow else Qt.Orientation.Horizontal)
+        if previous is None or previous[6]!=stacked:
+            self.library_split.setOrientation(Qt.Orientation.Vertical if stacked else Qt.Orientation.Horizontal)
             self.library_split.setMinimumHeight(0)
-            self.library_split.setSizes([180,410] if narrow else [460,540])
+            self.library_split.setSizes([180,410] if stacked else [390,610])
         self.settings_list.setVisible(not settings_compact); self.settings_selector.setVisible(settings_compact)
         for row in self.settings_rows: row.setDirection(QBoxLayout.Direction.TopToBottom if row_compact else QBoxLayout.Direction.LeftToRight)
-        columns=2 if row_compact else 3
+        columns=1 if tiny else 2 if row_compact else 3
         for i,tile in enumerate(self.theme_tiles):
             self.theme_grid.removeWidget(tile); self.theme_grid.addWidget(tile,i//columns,i%columns)
-        self.centralWidget().layout().invalidate()
+        self.centralWidget().layout().invalidate(); self.stack.updateGeometry()
 
     def navigate(self,i):
-        self.stack.setCurrentIndex(i); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
+        self.stack.setCurrentIndex(i); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
         if i!=1 and self.player: self.player.pause()
         if i!=2: self.editor.pause()
         for j,b in enumerate(self.nav): b.setChecked(i==j)
@@ -1050,7 +1060,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.0.4 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v1.1.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1236,4 +1246,4 @@ class Window(QMainWindow):
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.0.4'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('1.1.0'); app.setDesktopFileName('crimson-clips'); window=Window(); window.show(); sys.exit(app.exec())

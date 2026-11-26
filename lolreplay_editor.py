@@ -4,11 +4,11 @@ import shutil
 from pathlib import Path
 from PySide6.QtCore import Qt, QProcess, QUrl, Signal, QRectF, QSize
 from PySide6.QtGui import QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence
-from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog)
+from PySide6.QtWidgets import (QWidget,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QBoxLayout,QGridLayout,QFrame,QFileDialog,QDoubleSpinBox,QSlider,QProgressBar,QMessageBox,QSizePolicy,QScrollArea,QComboBox,QDialog,QSplitter)
 import lolreplay_storage as storage
 from lolreplay_export import probe, export_args, temp_for
 from lolreplay_icons import decorate
-from lolreplay_widgets import SeekSlider, PageScroll
+from lolreplay_widgets import SeekSlider, PageScroll, fit_combo
 try:
     from PySide6.QtMultimedia import QMediaPlayer,QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -54,11 +54,11 @@ class FullscreenPlayer(QDialog):
         layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
         self.video=ClickVideoWidget(self); self.video.clicked.connect(lambda: toggle() if getattr(parent,'prefs',{}).get('video_click',True) else None);
         if not getattr(parent,'prefs',{}).get('video_click',True): self.video.setToolTip(''); self.video.setAccessibleName(t('Video preview'))
-        self.video.setStyleSheet('background:#050505;border:none;'); layout.addWidget(self.video,1)
-        bar=QFrame(); bar.setObjectName('fullscreenControls'); row=QHBoxLayout(bar); row.setContentsMargins(16,8,16,8)
+        self.video.setStyleSheet('background:#050505;border:none;'); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); layout.addWidget(self.video,1)
+        bar=QFrame(); bar.setObjectName('fullscreenControls'); controls=QVBoxLayout(bar); controls.setContentsMargins(12,6,12,6); controls.setSpacing(5); row=QHBoxLayout()
         self.ink=parent.button_ink() if hasattr(parent,'button_ink') else '#ffffff'; self.play=decorate(btn(t('Play'),toggle,'primary'),'play',self.ink); row.addWidget(self.play)
-        self.seek=SeekSlider(); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.setRange(0,max(0,player.duration())); self.seek.setValue(player.position()); self.seek.seekRequested.connect(player.setPosition); row.addWidget(self.seek,1)
-        self.time=lab('', 'muted'); row.addWidget(self.time); row.addWidget(decorate(btn(t('Exit full screen')+' · Esc',self.reject),'full')); layout.addWidget(bar)
+        self.seek=SeekSlider(); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.setRange(0,max(0,player.duration())); self.seek.setValue(player.position()); self.seek.seekRequested.connect(player.setPosition); controls.addWidget(self.seek)
+        self.time=lab('', 'muted'); row.addWidget(self.time); row.addStretch(); row.addWidget(decorate(btn(t('Exit full screen')+' · Esc',self.reject),'full')); controls.addLayout(row); layout.addWidget(bar)
         self.shortcuts=[]
         keymap=parent.keymap; bindings={'Esc':self.reject};
         for name,action in [('exit_fullscreen',self.reject),('fullscreen',self.reject),('play',toggle)]:
@@ -134,11 +134,11 @@ class Editor(QWidget):
         super().__init__(); self.window=window; self.source=None; self.music=None; self.total=0.; self.tracks=0; self.temp=None; self.target=None; self.cancelled=False; self.buf=''; self.err=''; self.previewing=False; self.player=None
         self.proc=QProcess(self); self.proc.readyReadStandardOutput.connect(self.progress_read); self.proc.readyReadStandardError.connect(self.error_read); self.proc.finished.connect(self.finished); self.proc.errorOccurred.connect(self.process_error)
         main=QVBoxLayout(self); main.setContentsMargins(0,0,0,0); main.setSpacing(12)
-        top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=QComboBox(); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
+        top=QHBoxLayout(); top.addWidget(lab(t('Clip'),'section')); self.choose=fit_combo(QComboBox()); self.choose.setAccessibleName(t('Clip to edit')); self.choose.setToolTip(t('Choose a saved clip from your library')); self.choose.setMinimumHeight(48); self.choose.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); self.choose.setIconSize(QSize(64,36)); self.choose.setMaxVisibleItems(10); self.choose.currentIndexChanged.connect(self.choose_clip); top.addWidget(self.choose,1); self.count=lab(clip_count(0),'muted'); top.addWidget(self.count); main.addLayout(top)
         self.title=lab(t('No clip selected'),'muted'); self.title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.title)
-        area=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.area=area; area.setSpacing(16); left=QFrame(); left.setObjectName('feature'); l=QVBoxLayout(left); l.setContentsMargins(0,0,0,0); l.setSpacing(9)
+        area=QSplitter(Qt.Orientation.Horizontal); self.area=area; area.setChildrenCollapsible(False); left=QFrame(); left.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); left.setMinimumSize(120,150); left.setObjectName('feature'); l=QVBoxLayout(left); l.setContentsMargins(0,0,0,0); l.setSpacing(9)
         if MEDIA:
-            self.video=ClickVideoWidget(); self.video.clicked.connect(lambda:self.play_selection() if self.window.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(105); self.video.setStyleSheet('background:#050505'); l.addWidget(self.video,3)
+            self.video=ClickVideoWidget(); self.video.clicked.connect(lambda:self.play_selection() if self.window.prefs['video_click'] else None); self.video.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored); self.video.setMinimumHeight(72); self.video.setStyleSheet('background:#050505'); l.addWidget(self.video,3)
             self.player=QMediaPlayer(self); self.audio=QAudioOutput(self); self.audio.setVolume(.45); self.player.setAudioOutput(self.audio); self.player.setVideoOutput(self.video); self.player.positionChanged.connect(self.position); self.player.playbackStateChanged.connect(self.play_state); self.player.errorOccurred.connect(lambda e,m:self.note.setText(t('Preview: ')+m))
         else: l.addWidget(lab(t('Preview unavailable. Export is still supported.'),'muted'),1)
         # QVideoWidget is a native video surface: keep it outside scroll areas.
@@ -154,9 +154,14 @@ class Editor(QWidget):
         self.start.setAccessibleName(t('Trim start in seconds')); self.end.setAccessibleName(t('Trim end in seconds')); self.start.valueChanged.connect(lambda x:self.set_range(x,self.end.value(),'start')); self.end.valueChanged.connect(lambda x:self.set_range(self.start.value(),x,'end'))
         grid.addWidget(lab(t('IN'),'eyebrow'),0,0); grid.addWidget(lab(t('OUT'),'eyebrow'),0,1); grid.addWidget(self.start,1,0); grid.addWidget(self.end,1,1)
         self.markin=btn(t('Set in at playhead'),lambda:self.set_range(self.timeline.pos,self.end.value(),'start')); self.markout=btn(t('Set out at playhead'),lambda:self.set_range(self.start.value(),self.timeline.pos,'end')); grid.addWidget(self.markin,2,0); grid.addWidget(self.markout,2,1); trim_layout.addLayout(grid)
-        row=QHBoxLayout(); self.selection=lab(t('Selected: {0}','00:00.0'),'section'); row.addWidget(self.selection); row.addStretch(); self.reset=btn(t('Reset trim'),lambda:self.set_range(0,self.total)); row.addWidget(self.reset); trim_layout.addLayout(row); self.trim_scroll=PageScroll(trim); l.addWidget(self.trim_scroll,2); area.addWidget(left,3)
-        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail,2); main.addLayout(area,1)
+        row=QHBoxLayout(); self.selection=lab(t('Selected: {0}','00:00.0'),'section'); row.addWidget(self.selection); row.addStretch(); self.reset=btn(t('Reset trim'),lambda:self.set_range(0,self.total)); row.addWidget(self.reset); trim_layout.addLayout(row); self.trim_scroll=PageScroll(trim); l.addWidget(self.trim_scroll,2); area.addWidget(left)
+        rail=QFrame(); rail.setObjectName('rail'); r=QVBoxLayout(rail); r.setContentsMargins(12,8,12,8); r.setSpacing(9); r.addWidget(lab(t('AUDIO'),'eyebrow')); r.addWidget(lab(t('Original audio'),'section')); self.vol=self.slider(r,100); self.vol.setAccessibleName(t('Original audio volume')); r.addSpacing(8); r.addWidget(lab(t('Local music'),'section')); self.music_name=lab(t('No music selected'),'muted'); self.music_name.setWordWrap(True); r.addWidget(self.music_name); self.music_btn=decorate(btn(t('Add music…'),self.choose_music),'music'); r.addWidget(self.music_btn); self.clear_music=btn(t('Remove music'),self.remove_music,'quiet'); r.addWidget(self.clear_music); self.musicvol=self.slider(r,25); self.musicvol.setAccessibleName(t('Music volume')); note=lab(t('Music loops to fit the selection. Preview plays original audio only.'),'muted'); note.setWordWrap(True); r.addWidget(note); r.addStretch(); r.addWidget(lab(t('EXPORT'),'eyebrow')); r.addWidget(lab('MP4 · H.264 / AAC','section')); hint=lab(t('Replaces the original only after a successful export.'),'muted'); hint.setWordWrap(True); r.addWidget(hint); self.export=decorate(btn(t('Save changes'),self.begin_export,'primary'),'save','#ffffff'); r.addWidget(self.export); self.progress=QProgressBar(); self.progress.setObjectName('exportProgress'); self.progress.setAccessibleName(t('Export progress')); self.progress.setRange(0,100); self.progress.setValue(0); r.addWidget(self.progress); self.cancel=btn(t('Cancel export'),self.cancel_export); r.addWidget(self.cancel); self.rail=PageScroll(rail); self.rail.setAccessibleName(t('AUDIO')); area.addWidget(self.rail); area.setStretchFactor(0,3); area.setStretchFactor(1,2); area.setSizes([600,360]); main.addWidget(area,1)
         self.note=lab(window.hotkey_text('Save a clip with F8 to start editing.'),'muted'); self.note.setWordWrap(True); self.note.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); main.addWidget(self.note); self.controls()
+    def set_stacked(self, stacked):
+        orientation=Qt.Orientation.Vertical if stacked else Qt.Orientation.Horizontal
+        if self.area.orientation()!=orientation:
+            self.area.setOrientation(orientation)
+            self.area.setSizes([380,220] if stacked else [600,360])
     def slider(self,layout,value):
         row=QHBoxLayout(); s=QSlider(Qt.Orientation.Horizontal); s.setRange(0,100); s.setValue(value); n=lab(f'{value}%','muted'); s.valueChanged.connect(lambda v:n.setText(f'{v}%')); row.addWidget(s,1); row.addWidget(n); layout.addLayout(row); return s
     def busy(self): return self.temp is not None
@@ -212,7 +217,7 @@ class Editor(QWidget):
             if storage.signature(p)!=identity: raise ValueError('Clip changed while opening')
             if not v or d<=0: raise ValueError(t('No readable video or duration'))
         except Exception as e: self.note.setText(t('Cannot open clip: ')+str(e)); return False
-        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.title.setText(p.name); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False
+        self.source=p; self.source_signature=identity; self.sync_selection(); self.total=d; self.tracks=a; self.title.setText(p.name); self.title.setToolTip(str(p)); self.timeline.total=d; self.timeline.pos=0.; self.previewing=False
         for w in (self.start,self.end):
             w.blockSignals(True); w.setRange(0,d); w.blockSignals(False)
         self.set_range(0,d); self.position(0); self.progress.setValue(0)

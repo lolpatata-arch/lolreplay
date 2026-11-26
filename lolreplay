@@ -9,7 +9,7 @@ if not args or args == ['ui']:
     target = bin_dir / 'lolreplay-ui'
     args = []
 elif args == ['--version']:
-    print('lolreplay 1.0.4')
+    print('lolreplay 1.1.0')
     sys.exit(0)
 else:
     target = bin_dir / 'crimson-clips'

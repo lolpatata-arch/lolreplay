@@ -1,6 +1,6 @@
 """Shared responsive widgets. Geometry is in Qt logical pixels (HiDPI aware)."""
 from PySide6.QtCore import Qt, QSize, Signal
-from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget
+from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget, QStackedWidget, QComboBox
 
 
 class PageScroll(QScrollArea):
@@ -12,9 +12,30 @@ class PageScroll(QScrollArea):
         self.setWidget(content)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     def minimumSizeHint(self):
-        return QSize(120, 100)
+        return QSize(100, 64)
     def sizeHint(self):
         return QSize(640, 440)
+
+
+class PageStack(QStackedWidget):
+    """Hidden pages must not set the minimum size of the active workspace.
+
+    Pages own their scrolling/splitters; the stack consumes the available space.
+    """
+    def minimumSizeHint(self):
+        return QSize(0, 0)
+
+    def sizeHint(self):
+        return QSize(640, 440)
+
+
+def fit_combo(combo, length=8):
+    """Long filenames/translations must not impose their full width on a page."""
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(length)
+    combo.setMinimumWidth(100)
+    combo.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    return combo
 
 
 class SeekSlider(QSlider):
