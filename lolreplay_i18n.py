@@ -3261,3 +3261,40 @@ _multitrack_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _multitrack_rows})
+
+_auto_audio_rows = [
+  [
+    "Automatic application tracks",
+    "Pistas de aplicaciones automáticas",
+    "Pistes automatiques des applications",
+    "Automatische Anwendungsspuren",
+    "Автоматические дорожки приложений",
+    "Automatyczne ścieżki aplikacji",
+    "アプリの自動音声トラック",
+    "自动应用音轨",
+    "Tracce automatiche delle app"
+  ],
+  [
+    "Applications are detected when replay starts. New applications are recorded together until the next restart.",
+    "Las aplicaciones se detectan al iniciar el replay. Las nuevas se graban juntas hasta el siguiente reinicio.",
+    "Les applications sont détectées au démarrage du replay. Les nouvelles sont enregistrées ensemble jusqu’au prochain redémarrage.",
+    "Anwendungen werden beim Replay-Start erkannt. Neue Anwendungen werden bis zum nächsten Neustart gemeinsam aufgenommen.",
+    "Приложения определяются при запуске повтора. Новые приложения записываются вместе до перезапуска.",
+    "Aplikacje są wykrywane przy uruchomieniu powtórki. Nowe aplikacje są nagrywane razem do ponownego uruchomienia.",
+    "リプレイ開始時にアプリを検出します。新しいアプリは次の再起動までまとめて録音されます。",
+    "回放启动时检测应用。新应用将在下次重启前合并录制。",
+    "Le app vengono rilevate all’avvio del replay. Le nuove app vengono registrate insieme fino al riavvio."
+  ],
+  [
+    "One recorded audio track. Enable automatic application tracks in Audio routing for new clips.",
+    "Una pista de audio grabada. Activa las pistas de aplicaciones automáticas en Ajustes de audio para los clips nuevos.",
+    "Une piste audio enregistrée. Activez les pistes automatiques dans les paramètres audio pour les nouveaux clips.",
+    "Eine aufgezeichnete Audiospur. Aktiviere automatische Anwendungsspuren in den Audioeinstellungen für neue Clips.",
+    "Одна записанная дорожка. Включите автоматические дорожки в настройках звука для новых клипов.",
+    "Jedna nagrana ścieżka. Włącz automatyczne ścieżki w ustawieniach audio dla nowych klipów.",
+    "録音された音声は1トラックです。新しいクリップには音声設定で自動トラックを有効にしてください。",
+    "仅有一条录制音轨。请在音频设置中为新片段启用自动应用音轨。",
+    "Una traccia audio registrata. Attiva le tracce automatiche nelle impostazioni audio per le nuove clip."
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _auto_audio_rows})

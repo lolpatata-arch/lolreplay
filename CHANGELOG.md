@@ -2,7 +2,10 @@
 
 ## Unreleased — 1.4 multitrack development
 
-- Opt-in system and microphone separation or explicit application-only tracks.
+- Opt-in automatic application tracks detected at replay startup; up to eight separate apps plus one inverse catch-all track, with ordinary output fallback if discovery is unavailable.
+- Remove manual application-name entry from GUI; retain legacy CLI configuration compatibility.
+- Clarify single-track clips in the editor.
+- Opt-in system and microphone separation.
 - Original mixed recording remains the default.
 - Independent per-track export gains and individual track preview; preserve multitrack originals by exporting a mixed copy.
 - Live GSR/PipeWire/Qt validation pending.

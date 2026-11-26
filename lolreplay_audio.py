@@ -41,11 +41,39 @@ def app_names(value):
     return value
 
 
+def detected_apps():
+    """Use the recorder's own names, never guess from process names."""
+    names=[]
+    for line in cmd('gpu-screen-recorder','--list-application-audio').splitlines():
+        name=line.strip()
+        if not name or name.casefold().startswith('lolreplay_'):
+            continue
+        if any(x.casefold()==name.casefold() for x in names):
+            continue
+        try: app_names([name])
+        except ValueError: continue
+        names.append(name)
+    # Prioritize commonly used voice and music apps; remaining sources are
+    # still captured in the catch-all track, even if the track budget is full.
+    priority=('discord','webrtc','spotify','vesktop','teamspeak')
+    names.sort(key=lambda name:(not any(p in name.casefold() for p in priority),name.casefold()))
+    return names[:8]
+
+
 def track_args(mode, output, mic=None, apps=()):
     if mode == 'mixed':
         return ['-a',output+('|' + mic if mic else '')]
     if mode == 'separate':
         sources=[output]
+    elif mode == 'auto':
+        names=app_names(list(apps))
+        if names:
+            # All exclusions in a single inverse application track.
+            sources=['app:'+name for name in names]
+            sources.append('|'.join('app-inverse:'+name for name in names))
+        else:
+            if not output: raise ValueError('No default output available')
+            sources=[output]
     elif mode == 'apps':
         names=app_names(list(apps))
         if not names:

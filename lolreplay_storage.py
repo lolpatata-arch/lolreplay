@@ -22,7 +22,7 @@ def validate_config(cfg):
     for key in ('output_dir','capture','microphone_source','audio_output'):
         if key in cfg and (not isinstance(cfg[key],str) or not cfg[key].strip() or '\x00' in cfg[key]): raise ValueError('Invalid configuration: '+key)
     mode=cfg.get('audio_mode','mixed')
-    if mode not in ('mixed','separate','apps'): raise ValueError('Invalid audio mode')
+    if mode not in ('mixed','separate','apps','auto'): raise ValueError('Invalid audio mode')
     from lolreplay_audio import app_names
     names=app_names(cfg.get('audio_apps',[]))
     if mode=='apps' and not names: raise ValueError('Application recording needs at least one name')

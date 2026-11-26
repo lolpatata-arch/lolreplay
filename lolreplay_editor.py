@@ -176,8 +176,11 @@ class Editor(QWidget):
             item=self.track_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
         self.track_sliders=[]
-        self.track_panel.setVisible(len(titles)>1)
-        if len(titles)<=1: return
+        self.track_panel.setVisible(bool(titles))
+        if len(titles)==1:
+            note=lab(t('One recorded audio track. Enable automatic application tracks in Audio routing for new clips.'),'muted'); note.setWordWrap(True); self.track_layout.addWidget(note)
+            return
+        if not titles: return
         self.track_layout.addWidget(lab(t('Independent audio tracks'),'section'))
         note=lab(t('Track volumes apply to export. Preview selects one original track.'),'muted'); note.setWordWrap(True); self.track_layout.addWidget(note)
         for i,title in enumerate(titles):

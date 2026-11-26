@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import lolreplay_audio as audio
 import lolreplay_storage as storage
 from lolreplay_export import export_args
@@ -9,6 +10,17 @@ class MultitrackTests(unittest.TestCase):
         self.assertEqual(audio.track_args('separate','out','mic'),['-a','out','-a','mic'])
         self.assertEqual(audio.track_args('separate','out'),['-a','out'])
         self.assertEqual(audio.track_args('apps',None,'mic',['cs2','Discord']),['-a','app:cs2','-a','app:Discord','-a','mic'])
+    def test_auto_detection(self):
+        with patch.object(audio,'cmd',return_value='Firefox\nSpotify\nfirefox\nDiscord\n\nlolreplay_virtual\ninvalid|name\n'):
+            self.assertEqual(audio.detected_apps(),['Discord','Spotify','Firefox'])
+        with patch.object(audio,'cmd',return_value=''):
+            self.assertEqual(audio.detected_apps(),[])
+        with patch.object(audio,'cmd',return_value='\n'.join(str(i) for i in range(12))):
+            self.assertEqual(len(audio.detected_apps()),8)
+        self.assertEqual(audio.track_args('auto',None,'mic',['Discord','Spotify']),['-a','app:Discord','-a','app:Spotify','-a','app-inverse:Discord|app-inverse:Spotify','-a','mic'])
+        self.assertEqual(audio.track_args('auto','out','mic',[]),['-a','out','-a','mic'])
+        self.assertEqual(storage.validate_config({'audio_mode':'auto'})['audio_mode'],'auto')
+
     def test_invalid_apps(self):
         for names in ([],['Discord','discord'],['x|app:y'],[''],['x;y']):
             with self.assertRaises(ValueError): audio.track_args('apps',None,None,names)

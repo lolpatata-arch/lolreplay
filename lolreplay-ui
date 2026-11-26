@@ -637,7 +637,7 @@ class Window(QMainWindow):
         row=self.settings_row(); row.addWidget(button(t('Open folder'),self.open_folder)); self.folder_btn=button(t('Change folder'),self.choose_folder); row.addWidget(self.folder_btn); self.drive_btn=button(t('Detected drives'),self.choose_drive); row.addWidget(self.drive_btn); row.addWidget(button(t('Recovery folder'),lambda:self.open_file(storage.staging()))); row.addStretch(); s.addLayout(row)
         v.addWidget(p); v.addStretch(); v=self.settings_tab(tabs,t('Audio routing')); p=panel(); s=QVBoxLayout(p); s.setContentsMargins(14,12,14,12); s.setSpacing(10); self.output_status=label(t('Capture output: ')+t('System default'),'muted'); self.output_status.setWordWrap(True); s.addWidget(self.output_status); self.output_btn=button(t('Choose output device'),self.choose_output); s.addWidget(self.output_btn); self.mic_status=label(t('Microphone: ')+t('mic off'),'muted'); self.mic_status.setWordWrap(True); s.addWidget(self.mic_status)
         row=self.settings_row(); self.mic_btn=button(t('Enable microphone'),self.toggle_mic); row.addWidget(self.mic_btn); self.source_btn=button(t('Choose microphone'),self.choose_mic); row.addWidget(self.source_btn); row.addStretch(); s.addLayout(row)
-        self.routing_btn=button(t('Audio track mode'),self.choose_audio_mode); s.addWidget(self.routing_btn); self.routing_status=label('','muted'); self.routing_status.setWordWrap(True); s.addWidget(self.routing_status)
+        self.routing_btn=button(t('Audio track mode'),self.choose_audio_mode); s.addWidget(self.routing_btn); self.routing_status=label('','muted'); self.routing_status.setWordWrap(True); s.addWidget(self.routing_status); self.auto_note=label(t('Applications are detected when replay starts. New applications are recorded together until the next restart.'),'muted'); self.auto_note.setWordWrap(True); s.addWidget(self.auto_note)
         note=label(t('Stop replay to change audio or storage. Output selects what gets recorded, not the desktop playback device.'),'muted'); note.setWordWrap(True); s.addWidget(note); v.addWidget(p); v.addStretch()
         v=self.settings_tab(tabs,t('Capture')); v.addWidget(label(t('Performance'),'section')); pp=panel(); pv=QVBoxLayout(pp); pv.setContentsMargins(14,12,14,12); pv.setSpacing(10)
         self.perf_status=label(t('Capture quality'),'section'); pv.addWidget(self.perf_status)
@@ -827,16 +827,11 @@ class Window(QMainWindow):
 
     def choose_audio_mode(self):
         if self.active is not False or self.pending: return
-        cfg=read_json(CONFIG); modes=['mixed','separate','apps']; choices=[t('Mixed audio'),t('Separate system and microphone'),t('Selected applications only')]
-        selected,ok=QInputDialog.getItem(self,t('Audio track mode'),t('Audio track mode'),choices,modes.index(cfg.get('audio_mode','mixed')) if cfg.get('audio_mode','mixed') in modes else 0,False)
-        if not ok: return
-        mode=modes[choices.index(selected)]
-        if mode!='apps': self.run('audio-mode',mode); return
-        names,ok=QInputDialog.getText(self,t('Selected applications only'),t('Application names separated by commas (only these apps are recorded):'),text=', '.join(cfg.get('audio_apps',[])))
-        if not ok: return
-        try: apps=audio.app_names([x.strip() for x in names.split(',') if x.strip()])
-        except ValueError as exc: self.message.setText(str(exc)); return
-        if apps: self.run('audio-mode','apps',*apps)
+        cfg=read_json(CONFIG); modes=['mixed','separate','auto']; choices=[t('Mixed audio'),t('Separate system and microphone'),t('Automatic application tracks')]
+        current=cfg.get('audio_mode','mixed')
+        index=modes.index(current) if current in modes else 2
+        selected,ok=QInputDialog.getItem(self,t('Audio track mode'),t('Audio track mode'),choices,index,False)
+        if ok: self.run('audio-mode',modes[choices.index(selected)])
 
     def choose_mic(self):
         if self.active is not False or self.pending: return
@@ -1134,7 +1129,7 @@ class Window(QMainWindow):
         self.rate_btn.setText(t('Rate control')+' · '+rate.upper())
         self.perf_status.setText(f'{fps} FPS · '+('CQP' if rate=='cqp' else f'{float(bitrate)/1000:g} Mbps (CBR)'))
         self.buffer_status.setText(t('History: {0} · estimated video data: {1:.0f} MB (not actual RAM usage)',self.format_duration_label(self.buffer_seconds),perf.video_payload_mb(bitrate,self.buffer_seconds)) if rate=='cbr' else t('History: {0} · CQP size varies with content',self.format_duration_label(self.buffer_seconds)))
-        mode_key=cfg.get('audio_mode','mixed'); self.routing_status.setText(t({'mixed':'Mixed audio','separate':'Separate system and microphone','apps':'Selected applications only'}[mode_key])+(' · '+', '.join(cfg.get('audio_apps',[])) if mode_key=='apps' else ''))
+        mode_key=cfg.get('audio_mode','mixed'); self.routing_status.setText(t({'mixed':'Mixed audio','separate':'Separate system and microphone','apps':'Selected applications only','auto':'Automatic application tracks'}[mode_key])+(' · '+', '.join(cfg.get('audio_apps',[])) if mode_key=='apps' else '')); self.auto_note.setVisible(mode_key=='auto')
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));

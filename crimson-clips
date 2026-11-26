@@ -149,13 +149,21 @@ def start(cfg):
     target = compositor.capture(cfg)
     # Usar un identificador real: default_input puede cambiar de dispositivo al vuelo.
     audio.cleanup()
-    output_device = audio.output_device(cfg.get("audio_output", "auto")) if cfg.get("audio_mode","mixed")!="apps" else None
+    routing=cfg.get("audio_mode","mixed")
+    apps=cfg.get("audio_apps",[])
+    if routing=="auto":
+        try: apps=audio.detected_apps()
+        except (RuntimeError,OSError,subprocess.SubprocessError) as exc:
+            print("Application detection unavailable; using system audio:",exc,flush=True)
+            apps=[]
+        print("Independent application tracks: "+(", ".join(apps) if apps else "none; using system audio"),flush=True)
+    output_device=audio.output_device(cfg.get("audio_output","auto")) if routing not in ("apps","auto") or (routing=="auto" and not apps) else None
     # Prepare storage before creating the virtual audio device.
     capture_dir = storage.staging() if cfg.get("library_id") else out
     mic_device = audio.bridge(resolve_microphone(cfg)) if cfg["microphone"] else None
     p = None
     try:
-        audio_args = audio.track_args(cfg.get("audio_mode","mixed"),output_device,mic_device,cfg.get("audio_apps",[]))
+        audio_args = audio.track_args(routing,output_device,mic_device,apps)
         mode = cfg.get("rate_control", "auto")
         for rate in perf.rate_attempts(mode):
             args = [
@@ -328,7 +336,7 @@ def main():
     output = sub.add_parser("audio-output", help="Select recorded playback device (or auto)")
     output.add_argument("device")
     routing = sub.add_parser("audio-mode", help="Configure mixed, separate mic, or application-only tracks")
-    routing.add_argument("mode",choices=("mixed","separate","apps"))
+    routing.add_argument("mode",choices=("mixed","separate","apps","auto"))
     routing.add_argument("apps",nargs="*")
     directory = sub.add_parser("directory", help="Elegir carpeta existente para clips")
     directory.add_argument("path")
