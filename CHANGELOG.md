@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 1.4 multitrack development
+
+- Opt-in system and microphone separation or explicit application-only tracks.
+- Original mixed recording remains the default.
+- Independent per-track export gains and individual track preview; preserve multitrack originals by exporting a mixed copy.
+- Live GSR/PipeWire/Qt validation pending.
+
 ## Unreleased — Smart library (1.3 development)
 
 - Persistent local favorites, manually assigned games and tags using SQLite.

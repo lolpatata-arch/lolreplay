@@ -3136,3 +3136,128 @@ _duration_rows = [
   ]
 ]
 CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _duration_rows})
+
+_multitrack_rows = [
+  [
+    "Audio track mode",
+    "Modo de pistas de audio",
+    "Mode des pistes audio",
+    "Audiomodus",
+    "Режим аудиодорожек",
+    "Tryb ścieżek audio",
+    "音声トラックモード",
+    "音轨模式",
+    "Modalità tracce audio"
+  ],
+  [
+    "Mixed audio",
+    "Audio mezclado",
+    "Audio mixé",
+    "Gemischtes Audio",
+    "Смешанный звук",
+    "Dźwięk mieszany",
+    "ミックス音声",
+    "混合音频",
+    "Audio miscelato"
+  ],
+  [
+    "Separate system and microphone",
+    "Separar sistema y micrófono",
+    "Séparer système et microphone",
+    "System und Mikrofon trennen",
+    "Раздельно система и микрофон",
+    "Osobno system i mikrofon",
+    "システム音とマイクを分離",
+    "分离系统与麦克风",
+    "Separa sistema e microfono"
+  ],
+  [
+    "Selected applications only",
+    "Solo aplicaciones seleccionadas",
+    "Applications sélectionnées uniquement",
+    "Nur ausgewählte Anwendungen",
+    "Только выбранные приложения",
+    "Tylko wybrane aplikacje",
+    "選択したアプリのみ",
+    "仅选定应用",
+    "Solo applicazioni selezionate"
+  ],
+  [
+    "Application names separated by commas (only these apps are recorded):",
+    "Nombres de aplicaciones separados por comas (solo se graban estas aplicaciones):",
+    "Noms des applications séparés par des virgules (seules ces applications sont enregistrées) :",
+    "Anwendungsnamen durch Kommas getrennt (nur diese werden aufgenommen):",
+    "Имена приложений через запятую (записываются только они):",
+    "Nazwy aplikacji oddzielone przecinkami (tylko one są nagrywane):",
+    "アプリ名をカンマ区切りで入力（これらのみ録音）：",
+    "应用名称以逗号分隔（仅录制这些应用）：",
+    "Nomi delle app separati da virgole (si registrano solo queste):"
+  ],
+  [
+    "Independent audio tracks",
+    "Pistas de audio independientes",
+    "Pistes audio indépendantes",
+    "Unabhängige Audiospuren",
+    "Независимые аудиодорожки",
+    "Niezależne ścieżki audio",
+    "独立した音声トラック",
+    "独立音轨",
+    "Tracce audio indipendenti"
+  ],
+  [
+    "Track volumes apply to export. Preview selects one original track.",
+    "Los volúmenes se aplican al exportar. La vista previa reproduce una pista original.",
+    "Les volumes s’appliquent à l’export. L’aperçu lit une piste originale.",
+    "Spurlautstärken gelten beim Export. Vorschau spielt eine Originalspur.",
+    "Громкость применяется при экспорте. Предпросмотр одной исходной дорожки.",
+    "Głośność dotyczy eksportu. Podgląd odtwarza jedną oryginalną ścieżkę.",
+    "音量は書き出し時に適用。プレビューは元の1トラックを再生。",
+    "音量在导出时生效。预览播放一条原始音轨。",
+    "I volumi si applicano all’esportazione. L’anteprima riproduce una traccia originale."
+  ],
+  [
+    "Audio track {0}",
+    "Pista de audio {0}",
+    "Piste audio {0}",
+    "Audiospur {0}",
+    "Аудиодорожка {0}",
+    "Ścieżka audio {0}",
+    "音声トラック {0}",
+    "音轨 {0}",
+    "Traccia audio {0}"
+  ],
+  [
+    "Listen to track",
+    "Escuchar pista",
+    "Écouter la piste",
+    "Spur anhören",
+    "Прослушать дорожку",
+    "Odsłuchaj ścieżkę",
+    "トラックを聴く",
+    "试听音轨",
+    "Ascolta traccia"
+  ],
+  [
+    "Save mixed copy",
+    "Guardar copia mezclada",
+    "Enregistrer une copie mixée",
+    "Gemischte Kopie speichern",
+    "Сохранить смешанную копию",
+    "Zapisz kopię miksu",
+    "ミックスコピーを保存",
+    "保存混合副本",
+    "Salva copia miscelata"
+  ],
+  [
+    "Export a mixed copy? The original independent tracks will be preserved.",
+    "¿Exportar una copia mezclada? Se conservarán las pistas independientes originales.",
+    "Exporter une copie mixée ? Les pistes originales seront conservées.",
+    "Gemischte Kopie exportieren? Originalspuren bleiben erhalten.",
+    "Экспортировать смешанную копию? Исходные дорожки сохранятся.",
+    "Wyeksportować miks? Oryginalne ścieżki zostaną zachowane.",
+    "ミックスコピーを書き出しますか？元のトラックは保持されます。",
+    "导出混合副本？原始独立音轨将保留。",
+    "Esportare una copia miscelata? Le tracce originali saranno conservate."
+  ]
+]
+CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in _multitrack_rows})

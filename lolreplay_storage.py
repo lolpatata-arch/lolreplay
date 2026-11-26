@@ -21,6 +21,11 @@ def validate_config(cfg):
     if cfg.get('save_seconds',30)>cfg.get('buffer_seconds',1200): raise ValueError('Clip duration exceeds replay buffer')
     for key in ('output_dir','capture','microphone_source','audio_output'):
         if key in cfg and (not isinstance(cfg[key],str) or not cfg[key].strip() or '\x00' in cfg[key]): raise ValueError('Invalid configuration: '+key)
+    mode=cfg.get('audio_mode','mixed')
+    if mode not in ('mixed','separate','apps'): raise ValueError('Invalid audio mode')
+    from lolreplay_audio import app_names
+    names=app_names(cfg.get('audio_apps',[]))
+    if mode=='apps' and not names: raise ValueError('Application recording needs at least one name')
     if 'microphone' in cfg and type(cfg['microphone']) is not bool: raise ValueError('Invalid microphone setting')
     if cfg.get('niri_capture','portal') not in ('portal','screen'): raise ValueError('Invalid Niri capture mode')
     if cfg.get('rate_control','auto') not in ('auto','cbr','cqp'): raise ValueError('Invalid rate control')

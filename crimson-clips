@@ -33,6 +33,8 @@ DEFAULT = {
     "microphone": False,
     "microphone_source": "auto",  # Identificador de dispositivo de GSR o auto para pactl
     "audio_output": "auto",
+    "audio_mode": "mixed",
+    "audio_apps": [],
     "output_dir": str(Path.home() / "Videos" / "CrimsonClips"),
     "capture": "screen",
     "rate_control": "auto",
@@ -147,14 +149,13 @@ def start(cfg):
     target = compositor.capture(cfg)
     # Usar un identificador real: default_input puede cambiar de dispositivo al vuelo.
     audio.cleanup()
-    output_device = audio.output_device(cfg.get("audio_output", "auto"))
+    output_device = audio.output_device(cfg.get("audio_output", "auto")) if cfg.get("audio_mode","mixed")!="apps" else None
     # Prepare storage before creating the virtual audio device.
     capture_dir = storage.staging() if cfg.get("library_id") else out
     mic_device = audio.bridge(resolve_microphone(cfg)) if cfg["microphone"] else None
-    # Mix system audio with the isolated microphone monitor for ordinary playback.
-    audio_args = ["-a", output_device + ("|"+mic_device if mic_device else "")]
     p = None
     try:
+        audio_args = audio.track_args(cfg.get("audio_mode","mixed"),output_device,mic_device,cfg.get("audio_apps",[]))
         mode = cfg.get("rate_control", "auto")
         for rate in perf.rate_attempts(mode):
             args = [
@@ -326,6 +327,9 @@ def main():
     source.add_argument("device")
     output = sub.add_parser("audio-output", help="Select recorded playback device (or auto)")
     output.add_argument("device")
+    routing = sub.add_parser("audio-mode", help="Configure mixed, separate mic, or application-only tracks")
+    routing.add_argument("mode",choices=("mixed","separate","apps"))
+    routing.add_argument("apps",nargs="*")
     directory = sub.add_parser("directory", help="Elegir carpeta existente para clips")
     directory.add_argument("path")
     args = parser.parse_args()
@@ -341,7 +345,7 @@ def main():
                 except BlockingIOError:
                     if time.monotonic()>=deadline: raise RuntimeError('Otra operación de lolreplay sigue en curso. Reintenta en unos segundos.')
                     time.sleep(.1)
-        if args.command in ("mic","mic-source","audio-output","directory","niri-capture","profile","buffer","rate-control") and is_running():
+        if args.command in ("mic","mic-source","audio-output","audio-mode","directory","niri-capture","profile","buffer","rate-control") and is_running():
             raise RuntimeError("Stop replay before changing capture, audio or storage (buffer will reset).")
         # Status and stop must work even if the settings file is damaged.
         if args.command == 'status':
@@ -397,6 +401,15 @@ def main():
             print("🎙️ Nuevo micrófono:", args.device)
             if is_running():
                 print("⚠️ Para aplicar: crimson-clips stop; crimson-clips start")
+            return 0
+        if args.command == "audio-mode":
+            names=audio.app_names(args.apps)
+            if args.mode=="apps" and not names: raise ValueError("Select at least one application")
+            if args.mode!="apps" and names: raise ValueError("Application names require apps mode")
+            cfg["audio_mode"]=args.mode
+            if args.mode=="apps": cfg["audio_apps"]=names
+            config_save(storage.validate_config(cfg))
+            print("Audio mode:",args.mode)
             return 0
         if args.command == "audio-output":
             audio.output_device(args.device)
