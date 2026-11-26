@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 — Bento Dashboard (development)
+
+- Rebuild Replay as a fixed editorial grid: cinematic artwork and capture session on top, full-width control console and recent gallery below.
+- Display actual library clip count, favorites and disk size from the existing snapshot and metadata; preserve artwork choices, latest clip controls and shortcuts.
+- Narrow layouts put capture controls first and stack cards. Preserve 1.8 theme and customization options, with no new dependencies or background timers.
+- No movable widgets, live wallpapers or recorder/export changes. Automated regression tests extended; desktop validation pending.
+
 ## 1.8.0 — Shadow Interface
 
 - Floating shell-inspired panels and navigation on larger windows, with Crystal, Minimal and Classic styles; compact layouts retain their tested spacing targets.
