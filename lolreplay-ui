@@ -7,6 +7,7 @@ import re
 import lolreplay_preferences as prefs
 import lolreplay_backgrounds as backgrounds
 import lolreplay_visual as visual
+import lolreplay_dashboard as dashboard
 import lolreplay_shortcuts as keys
 import os
 from lolreplay_i18n import t, clip_count, LANGUAGES, set_language, language
@@ -16,7 +17,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
-from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo, PlaybackSpeedButton, SettingSwitch, search_normalized
+from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo, PlaybackSpeedButton, SettingSwitch, search_normalized, WidgetDragHandle
 import lolreplay_storage as storage
 import lolreplay_library as library
 import lolreplay_games as games
@@ -298,7 +299,7 @@ class Window(QMainWindow):
         self.setWindowIcon(QIcon(str(icon)))
         self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
         preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Obsidian'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
-        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences'))
+        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences')); self.dashboard_layout=dashboard.validated(preferences.get('dashboard_layout')); self.dashboard_editing=False
         raw_volume=preferences.get('playback_volume',45)
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
@@ -371,8 +372,14 @@ class Window(QMainWindow):
 
     def build_overview(self):
         v=self.page(t('Replay'),'')
-        # Fixed editorial composition. User-arrangeable widgets belong to a later release.
-        self.overview_layout=QGridLayout(); self.overview_layout.setSpacing(14)
+        self.widget_toolbar=QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.widget_edit_btn=decorate(button(t('Edit widgets'),self.toggle_widget_edit,'quiet'),'edit'); self.widget_edit_btn.setCheckable(True)
+        self.widget_toolbar.addWidget(self.widget_edit_btn); self.widget_toolbar.addStretch()
+        self.widget_add_btn=button(t('Add widget'),self.widget_add_menu,'quiet'); self.widget_reset_btn=button(t('Reset layout'),self.reset_dashboard,'quiet'); self.widget_toolbar.addWidget(self.widget_add_btn); self.widget_toolbar.addWidget(self.widget_reset_btn)
+        self.widget_add_btn.hide(); self.widget_reset_btn.hide(); v.addLayout(self.widget_toolbar)
+        self.widget_hint=label(t('Drag handles or use the arrows. Changes are saved automatically.'),'muted'); self.widget_hint.hide(); v.addWidget(self.widget_hint)
+        self.widget_empty=label(t('No widgets visible. Edit widgets to add them back.'),'muted'); self.widget_empty.hide(); v.addWidget(self.widget_empty)
+        self.overview_layout=QGridLayout(); self.overview_layout.setSpacing(14); self.widget_headers={}; self.widget_controls={}
         def card(name):
             frame=QFrame(); frame.setObjectName(name); frame.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred)
             layout=QVBoxLayout(frame); layout.setContentsMargins(16,14,16,14); layout.setSpacing(9)
@@ -434,31 +441,112 @@ class Window(QMainWindow):
         ec=QVBoxLayout(); ec.setSpacing(4); self.collection_title=label(t('Your collection starts here'),'section'); self.collection_title.setWordWrap(True); ec.addWidget(self.collection_title); self.collection_hint=label(t('Saved clips appear automatically.'),'muted'); ec.addWidget(self.collection_hint); er.addLayout(ec,1)
         er.addWidget(decorate(button(t('Browse'),lambda:self.navigate(1),'quiet'),'arrow')); left.addWidget(self.recent_empty)
         self.collection_summary=label(clip_count(0)+' · 0 MB','muted'); left.addWidget(self.collection_summary); self.collection_detail=label(t('Click a thumbnail to watch it.'),'muted'); left.addWidget(self.collection_detail)
+        self.dashboard_favorite_card,fc=card('dashboardExtra')
+        fc.addWidget(label(t('Favorites'),'section')); self.widget_favorite_count=label('0','dashboardMetric'); fc.addWidget(self.widget_favorite_count)
+        fc.addWidget(button(t('Browse favorites'),self.open_favorite_widget,'quiet')); fc.addStretch()
+        self.dashboard_storage_card,sc=card('dashboardExtra')
+        sc.addWidget(label(t('STORAGE'),'eyebrow')); self.widget_disk=label('—','stat'); self.widget_disk.setWordWrap(True); sc.addWidget(self.widget_disk)
+        self.widget_storage_bar=QProgressBar(); self.widget_storage_bar.setRange(0,1000); self.widget_storage_bar.setTextVisible(False); self.widget_storage_bar.setFixedHeight(5); sc.addWidget(self.widget_storage_bar)
+        self.widget_storage_folder=label('','muted'); self.widget_storage_folder.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); sc.addWidget(self.widget_storage_folder)
+        sc.addWidget(button(t('Open clips folder'),self.open_folder,'quiet')); sc.addStretch()
         self.dashboard_cards=(self.dashboard_hero,self.dashboard_session,self.overview_rail,self.dashboard_gallery)
+        self.widgets_by_id=dict(zip(dashboard.IDS,(self.dashboard_hero,self.overview_rail,self.dashboard_session,self.dashboard_gallery,self.dashboard_favorite_card,self.dashboard_storage_card)))
+        self.widget_names=dict(zip(dashboard.IDS,map(t,('Replay background','Capture controls','CAPTURE SESSION','Recent clips','Favorites','Storage'))))
+        for key,widget in self.widgets_by_id.items(): self.build_widget_header(key,widget.layout())
         v.addLayout(self.overview_layout); v.addStretch(); self.reflow_dashboard(False,False)
 
+    def open_favorite_widget(self):
+        self.navigate(1); self.reset_library_filters(); self.favorite_filter.setChecked(True)
+
+    def build_widget_header(self,key,layout):
+        frame=QFrame(); frame.setObjectName('widgetEditor'); outer=QVBoxLayout(frame); outer.setContentsMargins(4,4,4,5); outer.setSpacing(4)
+        row=QHBoxLayout(); row.setSpacing(4)
+        handle=WidgetDragHandle(key); handle.moved.connect(self.move_dashboard_widget); row.addWidget(handle)
+        title=label(self.widget_names[key],'muted'); title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); row.addWidget(title,1)
+        for glyph,description,action in (('↑','Move widget up',lambda:self.step_dashboard_widget(key,-1)),('↓','Move widget down',lambda:self.step_dashboard_widget(key,1)),('×','Hide widget',lambda:self.change_dashboard_widget(key,visible=False))):
+            b=button(glyph,action,'widgetSmall'); b.setAccessibleName(t(description)); b.setToolTip(t(description)); row.addWidget(b)
+        outer.addLayout(row); sizes=QHBoxLayout(); sizes.setSpacing(5)
+        width=QComboBox(); width.setAccessibleName(t('Widget width')); width.setToolTip(t('Widget width'))
+        for value in (1,2,3): width.addItem(str(value)+'/3',value)
+        height=QComboBox(); height.setAccessibleName(t('Widget height')); height.setToolTip(t('Widget height'))
+        for value,name in (('compact','Compact'),('normal','Normal'),('large','Large')): height.addItem(t(name),value)
+        sizes.addWidget(width,1); sizes.addWidget(height,2); outer.addLayout(sizes)
+        self.widget_headers[key]=frame; self.widget_controls[key]=(width,height)
+        width.currentIndexChanged.connect(lambda _,k=key,w=width:self.change_dashboard_widget(k,width=w.currentData()))
+        height.currentIndexChanged.connect(lambda _,k=key,w=height:self.change_dashboard_widget(k,height=w.currentData()))
+        layout.insertWidget(0,frame); frame.hide()
+
+    def toggle_widget_edit(self,checked):
+        self.dashboard_editing=bool(checked); self.widget_edit_btn.setChecked(self.dashboard_editing)
+        self.widget_edit_btn.setText(t('Done') if checked else t('Edit widgets'))
+        self.widget_hint.setVisible(checked); self.widget_add_btn.setVisible(checked); self.widget_reset_btn.setVisible(checked)
+        self.reflow_dashboard(*self.dashboard_mode)
+
+    def widget_add_menu(self):
+        menu=QMenu(self.widget_add_btn)
+        for key in dashboard.IDS:
+            if not self.dashboard_layout['widgets'][key]['visible']:
+                menu.addAction(self.widget_names[key],lambda k=key:self.change_dashboard_widget(k,visible=True))
+        if menu.isEmpty(): menu.addAction(t('All widgets visible')).setEnabled(False)
+        menu.exec(self.widget_add_btn.mapToGlobal(self.widget_add_btn.rect().bottomLeft()))
+
+    def save_dashboard_layout(self,value):
+        value=dashboard.validated(value)
+        try: write_ui({**read_json(UI_CONFIG),'dashboard_layout':value})
+        except OSError as exc:
+            self.message.setText(str(exc)); self.reflow_dashboard(*self.dashboard_mode); return
+        self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode)
+
+    def change_dashboard_widget(self,key,**values):
+        self.save_dashboard_layout(dashboard.change(self.dashboard_layout,key,**values))
+
+    def move_dashboard_widget(self,key,target):
+        if self.dashboard_editing: self.save_dashboard_layout(dashboard.move(self.dashboard_layout,key,target))
+
+    def step_dashboard_widget(self,key,direction):
+        if self.dashboard_editing:
+            # Move in the visual order on narrow screens as well.
+            visible=list(dashboard.positions(self.dashboard_layout,self.dashboard_mode[0]))
+            if key in visible:
+                index=visible.index(key)+direction
+                if 0<=index<len(visible):
+                    current=dashboard.validated(self.dashboard_layout)
+                    if self.dashboard_mode[0] and current['order']==list(dashboard.IDS):
+                        current['order']=['capture','hero','session','gallery','favorites','storage']
+                    self.save_dashboard_layout(dashboard.move(current,key,visible[index]))
+
+    def reset_dashboard(self):
+        self.save_dashboard_layout(dashboard.defaults())
+
     def reflow_dashboard(self,stacked,compact):
-        grid=self.overview_layout
-        for card in self.dashboard_cards: grid.removeWidget(card)
-        for i in range(4): grid.setRowStretch(i,0)
-        for i in range(3): grid.setColumnStretch(i,0)
-        if stacked:
-            # Capture remains the first visible action on a small screen.
-            for row,card in enumerate((self.overview_rail,self.dashboard_hero,self.dashboard_session,self.dashboard_gallery)):
-                grid.addWidget(card,row,0)
-            grid.setColumnStretch(0,1)
-        else:
-            grid.addWidget(self.dashboard_hero,0,0,1,2)
-            grid.addWidget(self.overview_rail,0,2)
-            grid.addWidget(self.dashboard_session,1,0,1,3)
-            grid.addWidget(self.dashboard_gallery,2,0,1,3)
-            for col in range(3): grid.setColumnStretch(col,1)
+        self.dashboard_mode=(stacked,compact); grid=self.overview_layout
+        for card in self.widgets_by_id.values(): grid.removeWidget(card)
+        for i in range(grid.rowCount()): grid.setRowStretch(i,0)
+        for i in range(3): grid.setColumnStretch(i,0); grid.setColumnMinimumWidth(i,0)
+        positions=dashboard.positions(self.dashboard_layout,stacked)
+        for key,card in self.widgets_by_id.items():
+            item=self.dashboard_layout['widgets'][key]; visible=key in positions
+            card.setVisible(visible); self.widget_headers[key].setVisible(visible and self.dashboard_editing)
+            width,height=self.widget_controls[key]
+            for control,value in ((width,item['width']),(height,item['height'])):
+                old=control.blockSignals(True); control.setCurrentIndex(control.findData(value)); control.blockSignals(old)
+            width.setEnabled(not stacked)
+            card.setMinimumHeight({'compact':0,'normal':0,'large':240}[item['height']])
+            if visible: grid.addWidget(card,*positions[key])
+        for col in range(1 if stacked else 3): grid.setColumnStretch(col,1)
+        self.widget_empty.setVisible(not positions)
+        self.widget_toolbar.setDirection(QBoxLayout.Direction.TopToBottom if compact and self.dashboard_editing else QBoxLayout.Direction.LeftToRight)
         self.console_layout.setDirection(QBoxLayout.Direction.TopToBottom)
-        self.session_layout.setDirection(QBoxLayout.Direction.TopToBottom if stacked else QBoxLayout.Direction.LeftToRight)
-        self.dashboard_stats.setDirection(QBoxLayout.Direction.TopToBottom if stacked and compact else QBoxLayout.Direction.LeftToRight)
+        session_narrow=stacked or self.dashboard_layout['widgets']['session']['width']<3
+        hero_narrow=stacked or self.dashboard_layout['widgets']['hero']['width']==1
+        gallery_narrow=stacked or self.dashboard_layout['widgets']['gallery']['width']==1
+        self.session_layout.setDirection(QBoxLayout.Direction.TopToBottom if session_narrow else QBoxLayout.Direction.LeftToRight)
+        self.latest_details.setDirection(QBoxLayout.Direction.TopToBottom if hero_narrow else QBoxLayout.Direction.LeftToRight)
+        self.dashboard_stats.setDirection(QBoxLayout.Direction.TopToBottom if gallery_narrow else QBoxLayout.Direction.LeftToRight)
         grid.setSpacing(9 if compact else 14)
-        self.art.setMinimumHeight(170 if compact else 340)
-        self.recent.setMinimumHeight(155 if compact else 185)
+        hero_height=self.dashboard_layout['widgets']['hero']['height']; gallery_height=self.dashboard_layout['widgets']['gallery']['height']
+        self.art.setMinimumHeight({'compact':110,'normal':170 if compact else 340,'large':280 if compact else 460}[hero_height])
+        self.recent.setMinimumHeight({'compact':110,'normal':155 if compact else 185,'large':290}[gallery_height])
 
     @staticmethod
     def rule():
@@ -1289,7 +1377,6 @@ class Window(QMainWindow):
         dashboard_stacked=content_width/scale<850
         self.reflow_dashboard(dashboard_stacked,compact)
         self.editor.set_stacked(stacked)
-        self.latest_details.setDirection(QBoxLayout.Direction.TopToBottom if dashboard_stacked else QBoxLayout.Direction.LeftToRight)
         self.library_toolbar.setDirection(QBoxLayout.Direction.LeftToRight)
         self.filter_panel.setVisible(not compact); self.compact_filters.setVisible(compact)
         self.library_page_layout.setSpacing(6 if compact else 15)
@@ -1473,10 +1560,14 @@ class Window(QMainWindow):
         raised=QColor(panelbg).lighter(135).name(); deep=QColor(bg).darker(112).name()
         surface=f'qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {raised},stop:1 {panelbg})' if visual.profile(self.prefs).sheen else panelbg
         stylesheet+=f'''
-        QFrame#dashboardHero,QFrame#dashboardSession,QFrame#dashboardConsole,QFrame#dashboardGallery {{
+        QFrame#dashboardHero,QFrame#dashboardSession,QFrame#dashboardConsole,QFrame#dashboardGallery,QFrame#dashboardExtra {{
             background:{surface};border:1px solid {border};border-radius:{radius}px;
         }}
-        QFrame#dashboardHero QLabel,QFrame#dashboardSession QLabel,QFrame#dashboardConsole QLabel,QFrame#dashboardGallery QLabel {{background:transparent;}}
+        QFrame#dashboardHero QLabel,QFrame#dashboardSession QLabel,QFrame#dashboardConsole QLabel,QFrame#dashboardGallery QLabel,QFrame#dashboardExtra QLabel {{background:transparent;}}
+        QFrame#widgetEditor {{background:{deep};border:1px dashed {accent};border-radius:6px;}}
+        QPushButton#widgetSmall,QPushButton#widgetHandle {{padding:2px 5px;min-width:18px;min-height:20px;border-radius:4px;}}
+        QPushButton#widgetHandle[dropTarget="true"] {{background:{accent};color:{contrast};}}
+        QPushButton#widgetHandle:hover {{border-color:{bright};}}
         QFrame#dashboardConsole {{border:1px solid {accent};}}
         QFrame#dashboardStat {{background:{deep};border:1px solid {border};border-radius:{max(4,radius//2)}px;}}
         QLabel#dashboardMetric {{color:#f4f4f7;font-size:24px;font-weight:700;}}
@@ -1626,6 +1717,7 @@ class Window(QMainWindow):
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
+        self.widget_disk.setText(self.disk.text()); self.widget_storage_bar.setValue(self.storage_bar.value()); self.widget_storage_folder.setText(str(self.out)); self.widget_storage_folder.setToolTip(str(self.out))
 
     def foreground(self):
         return self.isVisible() and QApplication.instance().applicationState()==Qt.ApplicationState.ApplicationActive and not self.isMinimized()
@@ -1806,6 +1898,7 @@ class Window(QMainWindow):
         self.probe_failed.intersection_update(files); self.probe_queue=[key for key in files if key[2]>0 and key not in self.durations and key not in self.probe_failed and key!=self.probe_current]
         self.refresh_game_filter()
         self.dashboard_total.setText(str(len(files))); self.dashboard_favorites.setText(str(sum(bool(self.metadata_for(key[0])[0]) for key in files))); self.dashboard_size.setText(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')
+        self.widget_favorite_count.setText(self.dashboard_favorites.text())
         self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and files and k==files[0]))}
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
         recent_files=files[1:7] if self.replay_background['mode']=='last_clip' else files[:6]
