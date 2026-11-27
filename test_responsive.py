@@ -184,6 +184,41 @@ for locale in LANGUAGES:
         assert w.dashboard_layout==dashboard.defaults() and all(h.isHidden() for h in w.widget_headers.values())
         assert ui.read_json(ui.UI_CONFIG)['dashboard_layout']==dashboard.defaults()
         w.update_layout(force=True)
+        import lolreplay_creative as creative
+        assert w.creative_design==creative.DEFAULTS
+        if locale=='en_US':
+            original=creative.snapshot(w.creative_design,w.dashboard_layout)
+            studio=ui.CreativeStudio(w); studio.show(); app.processEvents()
+            studio.change('dock','left'); studio.change('radius',6); assert studio.history.current['design']['dock']=='left'
+            assert w.creative_design==original['design']
+            studio.travel(False); assert studio.history.current['design']['radius']==-1
+            studio.travel(True); assert studio.history.current['design']['radius']==6
+            assert studio.preview.grab().width()>0
+            studio.reject(); studio.deleteLater()
+            assert w.creative_design==original['design']
+            w.resize(1280,800); app.processEvents()
+            player=w.player; editor=w.editor.player
+            for dock in ('left','right','top','bottom'):
+                design=creative.validated({'dock':dock,'hub':'bottom','dock_mode':'full','palette':{'accent':'#4266ff'},'widget_styles':{'hero':{'color':'#172237','radius':3}}})
+                assert w.apply_creative(design,original['dashboard'],{'test':creative.snapshot(design,original['dashboard'])})
+                app.processEvents()
+                assert w.player is player and w.editor.player is editor
+                assert w.outer_layout.count()==3
+                assert w.hub.geometry().top()>w.body.geometry().bottom()
+                if dock=='left': assert w.dock.geometry().right()<w.body.geometry().left()
+                elif dock=='right': assert w.dock.geometry().left()>w.body.geometry().right()
+                elif dock=='top': assert w.dock.geometry().bottom()<w.body.geometry().top()
+                else: assert w.dock.geometry().top()>w.body.geometry().bottom()
+                assert w.palette_for()[3]=='#4266ff' and '#172237' in w.dashboard_hero.styleSheet()
+                assert ui.read_json(ui.UI_CONFIG)['creative_profiles']['test']['design']==design
+            design=creative.validated({'hub_visible':False})
+            assert w.apply_creative(design,original['dashboard'],{})
+            w.navigate(0); app.processEvents(); assert w.hub.isHidden()
+            w.change_dashboard_widget('capture',visible=False); assert not w.hub.isHidden()
+            w.change_dashboard_widget('capture',visible=True); w.navigate(3); assert not w.hub.isHidden()
+            w.navigate(0)
+            assert w.apply_creative(original['design'],original['dashboard'],{})
+            app.processEvents(); assert w.dashboard_hero.styleSheet()=='' and w.hub.isVisible()
         assert w.settings_list.objectName()=='settingsNavigation'
         assert w.settings_list.count()==11 and w.settings_selector.count()==11
         assert all(w.settings_list.item(i).data(Qt.ItemDataRole.UserRole+1) for i in range(11))

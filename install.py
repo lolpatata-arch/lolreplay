@@ -21,7 +21,7 @@ CONF=Path(os.environ.get('XDG_CONFIG_HOME', str(HOME/'.config')))
 LOG=HOME/'.local/state/crimson-clips/f8.log'
 BEGIN='-- BEGIN CRIMSON CLIPS F8'
 END='-- END CRIMSON CLIPS F8'
-PROGRAM_FILES=('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_backgrounds.py','lolreplay_visual.py','lolreplay_dashboard.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_library.py','lolreplay_games.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips','lolreplay_updater.py','lolreplay_update_ui.py')
+PROGRAM_FILES=('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_backgrounds.py','lolreplay_visual.py','lolreplay_dashboard.py','lolreplay_creative.py','lolreplay_studio.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_library.py','lolreplay_games.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips','lolreplay_updater.py','lolreplay_update_ui.py')
 
 def stamp(): return datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 def write(path, content, mode=None, backup=True):
@@ -111,7 +111,7 @@ def install_locked():
         if shutil.which(executable):
             try: subprocess.run([executable,*args],capture_output=True,timeout=5,check=False)
             except (OSError,subprocess.SubprocessError): pass
-    print('lolreplay 2.3.0 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
+    print('lolreplay 2.4.0 installed. Hyprland and experimental Niri support; existing clips, settings and bindings unchanged.')
 
 def check():
     import lolreplay_compositor as compositor
