@@ -143,6 +143,26 @@ for locale in LANGUAGES:
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.overview_rail))==(0,0,1,1)
         w.update_layout(force=True)
         assert w.settings_list.objectName()=='settingsNavigation'
+        assert w.settings_list.count()==11 and w.settings_selector.count()==11
+        assert all(w.settings_list.item(i).data(Qt.ItemDataRole.UserRole+1) for i in range(11))
+        assert len(w.settings_previews)==2
+        assert set(w.pref_sliders)=={'text_scale','wallpaper_dim','refresh_ms'}
+        w.navigate(3); app.processEvents()
+        speed_title=w.pref_controls['playback_speed'].accessibleName(); w.settings_search.setText(speed_title)
+        app.processEvents(); assert w.settings_results.count()>0
+        found=[i for i in range(w.settings_results.count()) if w.settings_index[w.settings_results.item(i).data(Qt.ItemDataRole.UserRole)][2] is w.pref_controls['playback_speed']]
+        assert found, speed_title
+        w.open_setting_result(w.settings_results.item(found[0])); app.processEvents()
+        assert w.settings_stack.currentIndex()==5 and not w.settings_search.text()
+        w.settings_search.setText('zzzzzzzzzzzzqzx'); app.processEvents(); assert w.settings_results.count()==0 and not w.settings_search_hint.isHidden()
+        w.settings_search.clear(); assert w.settings_search_hint.isHidden()
+        w.select_settings(4); app.processEvents(); assert w.settings_previews[1].isVisible()
+        original=w.prefs['wallpaper_dim']; slider=w.pref_sliders['wallpaper_dim']; slider.setValue(2)
+        assert w.prefs['wallpaper_dim']==30 and w.pref_controls['wallpaper_dim'].currentData()==30
+        w.set_preference('wallpaper_dim',original); assert slider.value()==w.pref_controls['wallpaper_dim'].currentIndex()
+        switch=w.pref_controls['accent_glow']; previous=switch.isChecked(); switch.click(); assert w.prefs['accent_glow']==(not previous); switch.click(); assert w.prefs['accent_glow']==previous
+        assert w.settings_previews[1].grab().size().width()>0
+        w.navigate(0); app.processEvents()
         assert w.background_preview.objectName()=='wallpaperPreview'
         assert w.background_btn.property('lrIcon')=='image'
         assert not w.background_btn.icon().isNull()

@@ -1,9 +1,41 @@
 """Shared responsive widgets. Geometry is in Qt logical pixels (HiDPI aware)."""
-from PySide6.QtCore import Qt, QSize, Signal
+from PySide6.QtCore import Qt, QSize, Signal, QRectF
 from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget, QStackedWidget, QComboBox, QPushButton, QMenu
 
+from PySide6.QtGui import QPainter, QColor, QPen
+import unicodedata
 from lolreplay_i18n import t
 from lolreplay_preferences import OPTIONS
+
+
+def search_normalized(value):
+    return ' '.join(''.join(ch for ch in unicodedata.normalize('NFKD',str(value).casefold()) if not unicodedata.combining(ch)).split())
+
+
+class SettingSwitch(QCheckBox):
+    """Native checkbox semantics, drawn as a compact switch."""
+    def __init__(self,parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Fixed)
+    def sizeHint(self):
+        h=max(24,self.fontMetrics().height()+6)
+        return QSize(round(h*1.8),h+4)
+    def minimumSizeHint(self): return self.sizeHint()
+    def hitButton(self,pos): return self.rect().contains(pos)
+    def paintEvent(self,event):
+        p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        h=min(self.height()-4,max(20,self.fontMetrics().height()+3)); w=min(self.width()-4,h*1.8)
+        x=(self.width()-w)/2; y=(self.height()-h)/2
+        palette=self.palette(); active=palette.highlight().color(); inactive=palette.mid().color()
+        color=active if self.isChecked() else inactive
+        if not self.isEnabled(): color=color.darker(160)
+        outline=palette.highlight().color().lighter(145) if self.hasFocus() else palette.midlight().color()
+        p.setPen(QPen(outline,2 if self.hasFocus() else 1)); p.setBrush(color)
+        p.drawRoundedRect(QRectF(x,y,w,h),h/2,h/2)
+        knob=h-8; p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor('#f6f6fa') if self.isEnabled() else QColor('#8c8c93'))
+        p.drawEllipse(QRectF(x+w-knob-4 if self.isChecked() else x+4,y+4,knob,knob))
+        p.end()
 
 
 class PlaybackSpeedButton(QPushButton):

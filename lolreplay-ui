@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 2.1.0: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 2.2.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
-from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo, PlaybackSpeedButton
+from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo, PlaybackSpeedButton, SettingSwitch, search_normalized
 import lolreplay_storage as storage
 import lolreplay_library as library
 import lolreplay_games as games
@@ -79,6 +79,72 @@ def button(text, fn, name=''):
 
 def panel():
     x=QFrame(); x.setObjectName('panel'); return x
+
+class InterfacePreview(QWidget):
+    """Small theme-aware schematic of the actual Overdrive shell, not a second UI."""
+    def __init__(self,window):
+        super().__init__(); self.window=window; self.setObjectName('interfacePreview')
+        self.setAccessibleName(t('Live interface preview'))
+        self.setMinimumHeight(120); self.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(155)
+    def paintEvent(self,event):
+        p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bg,surface,border,accent,bright=THEMES[self.window.theme]; design=visual.profile(self.window.prefs)
+        w=self.width(); h=self.height(); scale=min(w/360,h/155); p.translate((w-360*scale)/2,(h-155*scale)/2); p.scale(scale,scale)
+        radius=max(2,design.radius*.48); gap={'tight':4,'balanced':8,'airy':12}.get(self.window.prefs['visual_density'],8)
+        def tile(x,y,ww,hh,color,edge=border,r=radius):
+            p.setBrush(QColor(color)); p.setPen(QPen(QColor(edge),1) if edge else Qt.PenStyle.NoPen); p.drawRoundedRect(QRectF(x,y,ww,hh),r,r)
+        tile(1,1,358,153,bg)
+        tile(9,8,342,25,surface); tile(16,13,15,15,accent,None,4)
+        p.setPen(QColor('#f5f5f7')); f=QFont(self.font()); f.setPixelSize(11); f.setWeight(QFont.Weight.Bold); p.setFont(f); p.drawText(QRectF(36,10,100,20),Qt.AlignmentFlag.AlignVCenter,'lolreplay')
+        tile(253,14,40,13,bg); tile(299,14,44,13,accent,None,3)
+        tile(9,40,220-gap/2,70,surface); tile(229+gap/2,40,122-gap/2,70,surface)
+        ar=QRectF(14,45,210-gap/2,60); p.save(); clip=QPainterPath(); clip.addRoundedRect(ar,radius,radius); p.setClipPath(clip)
+        if design.sheen:
+            g=QLinearGradient(ar.topLeft(),ar.bottomRight()); g.setColorAt(0,QColor(bg)); g.setColorAt(1,QColor(accent).darker(175)); p.fillRect(ar,QBrush(g))
+        else: p.fillRect(ar,QColor(bg))
+        image=self.window.art.selected_art()
+        if image is not None and not image.isNull():
+            dest=ar.toRect(); 
+            if self.window.prefs['wallpaper_fit']=='fit':
+                fit=image.size().scaled(dest.size(),Qt.AspectRatioMode.KeepAspectRatio); p.drawPixmap(QRect(dest.center().x()-fit.width()//2,dest.center().y()-fit.height()//2,fit.width(),fit.height()),image)
+            else: backgrounds.cover(p,dest,image)
+            if self.window.prefs['wallpaper_dim']: p.fillRect(ar,QColor(0,0,0,round(255*self.window.prefs['wallpaper_dim']/100)))
+        else:
+            p.setPen(QPen(QColor(bright),1)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawEllipse(QRectF(ar.right()-51,ar.top()+8,44,44)); p.drawEllipse(QRectF(ar.right()-44,ar.top()+15,30,30))
+            p.setPen(QColor('#f4f4f7')); p.drawText(ar.adjusted(8,0,-52,0),Qt.AlignmentFlag.AlignVCenter,t('Replay'))
+        p.restore()
+        for yy in (48,68,88): tile(238+gap/2,yy,104-gap/2,13,accent if yy==68 else bg,None,4)
+        tile(9,116,342,11,surface)
+        dockw=112 if self.window.prefs['icon_navigation'] else 182; dx=(360-dockw)/2
+        tile(dx,132,dockw,15,surface)
+        for i in range(4):
+            bw=(dockw-14)/4; tile(dx+4+i*(bw+2),135,bw,9,accent if i==0 else bg,None,2)
+        p.end()
+
+
+class SettingsCategoryDelegate(QStyledItemDelegate):
+    def __init__(self,window,parent):
+        super().__init__(parent); self.window=window
+    def sizeHint(self,option,index):
+        return QSize(150,round(55*self.window.prefs['text_scale']/100))
+    def paint(self,p,option,index):
+        p.save(); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bg,surface,border,accent,bright=THEMES[self.window.theme]
+        r=option.rect.adjusted(3,2,-3,-2)
+        selected=bool(option.state & QStyle.StateFlag.State_Selected); hovered=bool(option.state & QStyle.StateFlag.State_MouseOver)
+        if selected or hovered:
+            p.setPen(QPen(QColor(accent if selected else border),1)); p.setBrush(QColor(surface).lighter(145 if selected else 120)); p.drawRoundedRect(QRectF(r),9,9)
+        p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor(accent if selected else bg)); p.drawRoundedRect(QRectF(r.x()+7,r.center().y()-15,30,30),8,8)
+        glyph=index.data(Qt.ItemDataRole.UserRole+1); icon(glyph or 'settings',self.window.button_ink() if selected else bright).paint(p,QRect(r.x()+13,r.center().y()-9,18,18))
+        x=r.x()+45; width=max(1,r.right()-x-5); f=QFont(option.font); f.setWeight(QFont.Weight.DemiBold); p.setFont(f); p.setPen(QColor('#f4f4f7'))
+        p.drawText(QRect(x,r.y()+4,width,r.height()//2),Qt.AlignmentFlag.AlignVCenter,p.fontMetrics().elidedText(str(index.data() or ''),Qt.TextElideMode.ElideRight,width))
+        f.setWeight(QFont.Weight.Normal); f.setPixelSize(max(10,round(10*self.window.prefs['text_scale']/100))); p.setFont(f); p.setPen(QColor('#dedee4' if self.window.prefs['high_contrast'] else '#a6a6b2'))
+        p.drawText(QRect(x,r.y()+r.height()//2,width,r.height()//2-2),Qt.AlignmentFlag.AlignVCenter,p.fontMetrics().elidedText(str(index.data(Qt.ItemDataRole.UserRole+2) or ''),Qt.TextElideMode.ElideRight,width))
+        if option.state & QStyle.StateFlag.State_HasFocus and self.window.prefs['strong_focus']:
+            p.setBrush(Qt.BrushStyle.NoBrush); p.setPen(QPen(QColor(bright),2)); p.drawRoundedRect(QRectF(r),9,9)
+        p.restore()
+
 
 class ClipDelegate(QStyledItemDelegate):
     """Media tile: artwork, title, timestamp and file size, without Qt's default icon chrome."""
@@ -272,7 +338,7 @@ class Window(QMainWindow):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); dock.addWidget(b,1)
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.dock_row=QHBoxLayout(); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
-        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.1.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
+        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.2.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -754,7 +820,7 @@ class Window(QMainWindow):
         content=QWidget(); layout=QVBoxLayout(content); layout.setContentsMargins(6,10,10,12); layout.setSpacing(14)
         scroll=PageScroll(content); tabs.addWidget(scroll)
         self.settings_list.addItem(name); self.settings_selector.addItem(name)
-        heading=label(name,'section'); heading.setWordWrap(True); layout.addWidget(heading)
+        heading=label(name,'settingsHeading'); heading.setWordWrap(True); layout.addWidget(heading)
         return layout
 
     def settings_row(self):
@@ -801,6 +867,7 @@ class Window(QMainWindow):
         self.background_path.setVisible(mode=='image')
         self.background_preview.setPixmap(self.background_preview_pix())
         self.background_missing.setVisible(mode=='image' and self.art.custom_pix.isNull())
+        for preview in getattr(self,'settings_previews',[]): preview.update()
 
     def background_preview_pix(self):
         pix=QPixmap(320,120); pix.fill(QColor('#0b0b0d')); p=QPainter(pix); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -830,10 +897,16 @@ class Window(QMainWindow):
 
     def build_settings(self):
         v=self.page(t('Settings'),'',scroll=False)
+        self.settings_previews=[]
+        self.settings_search=QLineEdit(); self.settings_search.setObjectName('settingsSearch'); self.settings_search.setPlaceholderText(t('Search settings…')); self.settings_search.setAccessibleName(t('Search settings…')); self.settings_search.setClearButtonEnabled(True)
+        self.settings_search.addAction(icon('settings'),QLineEdit.ActionPosition.LeadingPosition); v.addWidget(self.settings_search)
+        self.settings_results=QListWidget(); self.settings_results.setObjectName('settingsResults'); self.settings_results.setAccessibleName(t('Search settings…')); self.settings_results.setMaximumHeight(132); self.settings_results.setAlternatingRowColors(True); self.settings_results.hide(); v.addWidget(self.settings_results)
+        self.settings_search_hint=label('','muted'); self.settings_search_hint.hide(); v.addWidget(self.settings_search_hint)
         self.settings_selector=fit_combo(QComboBox()); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
-        settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setObjectName('settingsNavigation'); self.settings_list.setAccessibleName(t('Settings')); self.settings_list.setWordWrap(True); self.settings_list.setMaximumWidth(220); self.settings_list.setMinimumWidth(170); settings_area.addWidget(self.settings_list)
+        settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setObjectName('settingsNavigation'); self.settings_list.setAccessibleName(t('Control center')); self.settings_list.setMouseTracking(True); self.settings_list.setIconSize(QSize(20,20)); self.settings_list.setMaximumWidth(290); self.settings_list.setMinimumWidth(220); self.settings_list.setItemDelegate(SettingsCategoryDelegate(self,self.settings_list)); settings_area.addWidget(self.settings_list)
         tabs=PageStack(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
         v=self.settings_tab(tabs,t('Appearance'))
+        self.add_interface_preview(v)
         langrow=self.settings_row(); langrow.addWidget(label(t('Interface language'),'section')); self.language_selector=QComboBox(); fit_combo(self.language_selector)
         for code,name in LANGUAGES.items(): self.language_selector.addItem(name,code)
         self.language_selector.setCurrentIndex(self.language_selector.findData(language())); self.language_selector.currentIndexChanged.connect(self.change_language); langrow.addWidget(self.language_selector); v.addLayout(langrow)
@@ -842,9 +915,10 @@ class Window(QMainWindow):
         for i,(name,(bg,surface,border,accent,bright)) in enumerate(THEMES.items()):
             tile=panel(); tile.setObjectName('themeTile'); theme_layout=QVBoxLayout(tile); theme_layout.setContentsMargins(0,0,0,0); theme_layout.setSpacing(6)
             sample=QFrame(); sample.setFixedHeight(64); sample.setStyleSheet(f'QFrame {{background:{bg};border:1px solid {border};border-radius:7px;}}')
-            miniature=QHBoxLayout(sample); miniature.setContentsMargins(8,8,8,8); miniature.setSpacing(6)
-            nav=QFrame(); nav.setFixedWidth(31); nav.setStyleSheet(f'background:{surface};border:0;border-radius:4px;'); miniature.addWidget(nav)
-            main=QVBoxLayout(); main.setSpacing(6); line=QFrame(); line.setFixedHeight(8); line.setStyleSheet(f'background:{accent};border:0;border-radius:3px;'); main.addWidget(line); block=QFrame(); block.setStyleSheet(f'background:{surface};border:0;border-radius:4px;'); main.addWidget(block,1); miniature.addLayout(main,1); theme_layout.addWidget(sample)
+            miniature=QVBoxLayout(sample); miniature.setContentsMargins(8,5,8,5); miniature.setSpacing(4)
+            line=QFrame(); line.setFixedHeight(7); line.setStyleSheet(f'background:{accent};border:0;border-radius:3px;'); miniature.addWidget(line)
+            block=QFrame(); block.setStyleSheet(f'background:{surface};border:1px solid {border};border-radius:4px;'); miniature.addWidget(block,1)
+            nav=QFrame(); nav.setFixedHeight(8); nav.setStyleSheet(f'background:{surface};border:0;border-radius:4px;'); miniature.addWidget(nav,0,Qt.AlignmentFlag.AlignHCenter); nav.setMinimumWidth(55); theme_layout.addWidget(sample)
             self.theme_samples[name]=(sample,nav,line,block)
             choose=button(name,lambda checked=False,name=name:self.set_theme(name),'duration'); choose.setCheckable(True); choose.setChecked(name==self.theme); self.theme_buttons[name]=choose; theme_layout.addWidget(choose); self.theme_tiles.append(tile); choices.addWidget(tile,i//3,i%3)
         v.addLayout(choices)
@@ -887,23 +961,90 @@ class Window(QMainWindow):
         pages=[(tabs.widget(i),self.settings_selector.itemText(i)) for i in range(tabs.count())]
         self.settings_list.clear(); self.settings_selector.clear()
         for page,_ in pages: tabs.removeWidget(page)
-        for index in (3,2,1,0,4,5,6,8,7,9,10):
-            page,name=pages[index]; tabs.addWidget(page); self.settings_list.addItem(name); self.settings_selector.addItem(name)
+        descriptions=(
+            ('replay','Quality, buffer and rate'),('audio','Devices and audio tracks'),('folder','Folders and drives'),('image','Themes, colors and artwork'),('display','Layout and accessibility'),('play','Player controls and speed'),('settings','Startup and background tasks'),('keyboard','Save clips from any game'),('keyboard','In-app key bindings'),('system','Compositor and diagnostics'),('refresh','Installed version and releases'))
+        for position,index in enumerate((3,2,1,0,4,5,6,8,7,9,10)):
+            page,name=pages[index]; tabs.addWidget(page)
+            glyph,description=descriptions[position]; item=QListWidgetItem(name); item.setData(Qt.ItemDataRole.UserRole+1,glyph); item.setData(Qt.ItemDataRole.UserRole+2,t(description)); item.setToolTip(name+' · '+t(description)); self.settings_list.addItem(item); self.settings_selector.addItem(icon(glyph),name)
         self.settings_selector.currentIndexChanged.connect(self.select_settings); self.settings_list.currentRowChanged.connect(self.select_settings); self.select_settings(0)
+        self.build_settings_index()
+        self.settings_search.textChanged.connect(self.search_settings)
+        self.settings_search.returnPressed.connect(self.open_first_setting)
+        self.settings_results.itemActivated.connect(self.open_setting_result)
+        self.settings_results.itemClicked.connect(self.open_setting_result)
+
+    def add_interface_preview(self,layout):
+        card=panel(); card.setObjectName('settingsCard'); box=QVBoxLayout(card); box.setContentsMargins(12,10,12,10); box.setSpacing(5)
+        box.addWidget(label(t('Live interface preview'),'eyebrow')); preview=InterfacePreview(self); self.settings_previews.append(preview); box.addWidget(preview); layout.addWidget(card)
+
+    def build_settings_index(self):
+        # Index real settings controls and section headings, never execute search text.
+        self.settings_index=[]
+        for index in range(self.settings_stack.count()):
+            page=self.settings_stack.widget(index); category=self.settings_selector.itemText(index); category_item=self.settings_list.item(index)
+            self.settings_index.append((index,category,page.widget(),search_normalized(category+' '+str(category_item.data(Qt.ItemDataRole.UserRole+2)))))
+            seen=set()
+            for widget in page.widget().findChildren(QWidget):
+                if isinstance(widget,(QPushButton,QCheckBox,QComboBox,QKeySequenceEdit,QSlider,QLineEdit)):
+                    title=widget.accessibleName() or (widget.text() if isinstance(widget,(QPushButton,QCheckBox)) else '')
+                elif isinstance(widget,QLabel) and widget.objectName()=='section': title=widget.text()
+                else: continue
+                if not title: continue
+                name=search_normalized(title)
+                if name in seen: continue
+                seen.add(name)
+                self.settings_index.append((index,title,widget,search_normalized(title+' '+category)))
+
+    def search_settings(self,query):
+        words=search_normalized(query).split(); self.settings_results.clear()
+        self.settings_results.setVisible(bool(words)); self.settings_search_hint.setVisible(bool(words))
+        if not words: return
+        matched=[(i,e) for i,e in enumerate(self.settings_index) if all(word in e[3] for word in words)]
+        # Prefer exact/prefix setting names over incidental category matches.
+        needle=' '.join(words); matched.sort(key=lambda pair:(0 if search_normalized(pair[1][1])==needle else 1 if search_normalized(pair[1][1]).startswith(needle) else 2,pair[0]))
+        for key,(index,title,widget,_) in matched:
+            category=self.settings_selector.itemText(index); result=QListWidgetItem(title if title==category else category+'  /  '+title)
+            result.setData(Qt.ItemDataRole.UserRole,key); self.settings_results.addItem(result)
+        self.settings_search_hint.setText(t('{0} matching settings',len(matched)) if matched else t('No matching settings'))
+        self.settings_results.setVisible(bool(matched)); self.settings_results.setMaximumHeight(min(132,36*len(matched)+8))
+        if matched: self.settings_results.setCurrentRow(0)
+
+    def open_first_setting(self):
+        item=self.settings_results.currentItem()
+        if item is not None: self.open_setting_result(item)
+
+    def open_setting_result(self,item):
+        key=item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(key,int) or not 0<=key<len(self.settings_index): return
+        index,title,widget,_=self.settings_index[key]
+        self.settings_search.clear(); self.select_settings(index)
+        page=self.settings_stack.widget(index)
+        if widget.focusPolicy()!=Qt.FocusPolicy.NoFocus and widget.isEnabled(): widget.setFocus(Qt.FocusReason.OtherFocusReason)
+        if widget is page.widget(): page.verticalScrollBar().setValue(0); return
+        page.ensureWidgetVisible(widget,8,16)
+        QTimer.singleShot(0,lambda:page.ensureWidgetVisible(widget,8,16) if self.settings_stack.currentIndex()==index else None)
 
     def build_preferences(self,tabs):
         v=self.settings_tab(tabs,t('Display'))
-        self.pref_controls={}
+        self.add_interface_preview(v)
+        self.pref_controls={}; self.pref_sliders={}
         def choice(key,title,options):
-            row=self.settings_row(); name=label(t(title)); name.setWordWrap(True); row.addWidget(name,1)
+            card=panel(); card.setObjectName('settingsCard'); outer=QVBoxLayout(card); outer.setContentsMargins(10,7,10,7); row=self.settings_row(); name=label(t(title)); name.setWordWrap(True); row.addWidget(name,1)
             w=QComboBox(); w.setAccessibleName(t(title)); w.setMinimumWidth(140)
             for value,text in options: w.addItem(t(text),value)
             w.setCurrentIndex(w.findData(self.prefs[key])); self.pref_controls[key]=w
             w.currentIndexChanged.connect(lambda _,k=key,c=w:self.set_preference(k,c.currentData()))
-            row.addWidget(w); v.addLayout(row)
+            name.setBuddy(w); row.addWidget(w); outer.addLayout(row)
+            if key in ('text_scale','wallpaper_dim','refresh_ms'):
+                slider=QSlider(Qt.Orientation.Horizontal); slider.setRange(0,len(options)-1); slider.setValue(w.currentIndex()); slider.setTracking(False); slider.setAccessibleName(t(title)); slider.setToolTip(t(title))
+                slider.setTickPosition(QSlider.TickPosition.TicksBelow); slider.setTickInterval(1); self.pref_sliders[key]=slider
+                slider.valueChanged.connect(w.setCurrentIndex)
+                w.currentIndexChanged.connect(slider.setValue)
+                outer.addWidget(slider)
+            v.addWidget(card)
         def toggle(key,title):
-            w=QCheckBox(); w.setAccessibleName(t(title)); w.setChecked(self.prefs[key]); self.pref_controls[key]=w
-            w.toggled.connect(lambda value,k=key:self.set_preference(k,value)); v.addWidget(toggle_row(w,t(title)))
+            w=SettingSwitch(); w.setAccessibleName(t(title)); w.setChecked(self.prefs[key]); self.pref_controls[key]=w
+            w.toggled.connect(lambda value,k=key:self.set_preference(k,value)); row=toggle_row(w,t(title)); row.setObjectName('settingsCard'); row.layout().setContentsMargins(10,6,10,6); v.addWidget(row)
         choice('text_scale','Text size',[(100,'100%'),(110,'110%'),(120,'120%')])
         toggle('high_contrast','High contrast text and borders'); toggle('strong_focus','Visible keyboard focus'); toggle('large_targets','Larger controls')
         choice('tile_size','Clip thumbnail size',[('compact','Compact'),('normal','Normal'),('large','Large')])
@@ -936,14 +1077,14 @@ class Window(QMainWindow):
         try: write_ui(prefs.merge_ui(read_json(UI_CONFIG),self.prefs))
         except OSError as exc:
             self.prefs=previous; self.sync_pref_controls(); self.message.setText(str(exc)); return
+        self.sync_pref_controls()
         if key=='playback_speed':
             # No theme rebuild, source replacement, seek, or library refresh on a speed change.
-            self.sync_pref_controls()
             rate=self.prefs['playback_speed']/100
             for player in (self.player,self.editor.player):
                 if player is not None: player.setPlaybackRate(rate)
             return
-        self.apply_preferences()
+        self.apply_preferences(refresh=key=='thumbnails')
 
     def sync_pref_controls(self):
         for key,w in self.pref_controls.items():
@@ -951,6 +1092,8 @@ class Window(QMainWindow):
             if isinstance(w,QCheckBox): w.setChecked(self.prefs[key])
             else: w.setCurrentIndex(w.findData(self.prefs[key]))
             w.blockSignals(old)
+            if key in self.pref_sliders:
+                slider=self.pref_sliders[key]; old=slider.blockSignals(True); slider.setValue(w.currentIndex()); slider.blockSignals(old)
 
     def reset_preferences(self):
         previous=self.prefs; self.prefs=prefs.DEFAULTS.copy()
@@ -1163,6 +1306,8 @@ class Window(QMainWindow):
             self.library_split.setMinimumHeight(0)
             self.library_split.setSizes([180,410] if stacked else [390,610])
         self.settings_list.setVisible(not settings_compact); self.settings_selector.setVisible(settings_compact)
+        self.settings_list.setFixedWidth(round(258*scale)); self.settings_list.doItemsLayout()
+        for preview in self.settings_previews: preview.setFixedHeight(round((120 if compact else 168)*scale)); preview.update()
         for row in self.settings_rows: row.setDirection(QBoxLayout.Direction.TopToBottom if row_compact else QBoxLayout.Direction.LeftToRight)
         columns=1 if tiny else 2 if row_compact else 3
         for i,tile in enumerate(self.theme_tiles):
@@ -1371,6 +1516,14 @@ class Window(QMainWindow):
         QListWidget#settingsNavigation {{background:{panelbg};border:1px solid {border};padding:7px;}}
         QListWidget#settingsNavigation::item {{padding:9px;border-radius:7px;}}
         QFrame#themeTile {{background:{panelbg};border:1px solid {border};border-radius:9px;}}
+        QLabel#settingsHeading {{font-size:23px;font-weight:700;}}
+        QWidget#settingsCard {{background:{panelbg};border:1px solid {border};border-radius:{max(5,radius//2)}px;}}
+        QWidget#settingsCard QLabel {{background:transparent;border:0;}}
+        QLineEdit#settingsSearch {{background:{panelbg};border:1px solid {border};border-radius:{max(5,radius//2)}px;padding:8px 12px;}}
+        QLineEdit#settingsSearch:focus {{border-color:{bright};}}
+        QListWidget#settingsResults {{background:{panelbg};border:1px solid {border};border-radius:8px;padding:3px;}}
+        QListWidget#settingsResults::item {{padding:6px;}}
+        QListWidget#settingsNavigation::item {{border:0;background:transparent;}}
         QLineEdit {{background:{ink};border:1px solid {border};border-radius:9px;}}
         '''
         scale=self.prefs['text_scale']/100
@@ -1390,6 +1543,8 @@ class Window(QMainWindow):
             glyph=b.property('lrIcon')
             if glyph: decorate(b,glyph,contrast if b.objectName() in ('primary','dashboardSave','hubSave') else '#c5c5cc',bright if b.objectName()=='nav' else None)
         for b in self.nav: b.setIconSize(QSize(round(22*scale),round(22*scale)))
+        if hasattr(self,'settings_list'): self.settings_list.viewport().update()
+        for preview in getattr(self,'settings_previews',[]): preview.update()
         self.editor.timeline.accent=accent; self.editor.timeline.update(); self.art.update(); self.recent.viewport().update(); self.list.viewport().update(); self.paint_status()
 
     def update_custom_palette(self):
@@ -1467,7 +1622,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.1.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.2.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1771,7 +1926,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 2.1.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 2.2.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -1820,4 +1975,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.1.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.2.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
