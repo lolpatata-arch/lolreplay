@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 — Modular (development)
+
+- Convert the four existing Replay cards into independent layout widgets. Add optional Favorites and Storage widgets with real existing library and disk data, without additional background polling.
+- Edit widgets directly on the Replay page: drag handles onto another handle or use accessible arrow buttons, set one/two/three-column widths and compact/normal/large height presets, hide and restore cards, reset the factory layout. Narrow displays use one column; content retains its minimum usable size.
+- Persist validated layout data locally, independent of recording configuration. Preserve the global command hub and hotkey regardless of visible widgets. Include the new layout module in the installer and release manifest.
+- Add pure layout tests and responsive integration coverage. Runtime Qt validation is pending. Free-position editing of the entire interface remains outside this release.
+
 ## 2.2.0 — Control Center
 
 - Redesign the eleven existing settings categories with icon tiles, descriptions, a searchable local index and direct navigation to matching controls. Search ignores accents and case.

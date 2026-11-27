@@ -5,7 +5,7 @@ HEIGHTS=('compact','normal','large')
 
 
 def defaults():
-    return {'order':list(IDS),'widgets':{key:{'visible':key in IDS[:4],'width':WIDTHS[key],'height':'normal'} for key in IDS}}
+    return {'order':list(IDS),'custom_order':False,'widgets':{key:{'visible':key in IDS[:4],'width':WIDTHS[key],'height':'normal'} for key in IDS}}
 
 
 def validated(raw):
@@ -17,6 +17,7 @@ def validated(raw):
         for key in order:
             if isinstance(key,str) and key in IDS and key not in clean: clean.append(key)
         result['order']=clean+[key for key in IDS if key not in clean]
+    result['custom_order']=result['order']!=list(IDS) or raw.get('custom_order') is True
     entries=raw.get('widgets')
     if isinstance(entries,dict):
         for key,entry in entries.items():
@@ -36,8 +37,9 @@ def change(raw,key,**updates):
 
 def move(raw,key,target,stacked=False):
     value=validated(raw); order=value['order']
-    if stacked and order==list(IDS): order[:]=['capture','hero','session','gallery','favorites','storage']
     if key not in IDS or target not in IDS or key==target: return value
+    if stacked and not value['custom_order']: order[:]=['capture','hero','session','gallery','favorites','storage']
+    value['custom_order']=True
     position=order.index(target); order.remove(key); order.insert(position,key)
     return value
 
@@ -51,7 +53,7 @@ def step(raw,key,direction,stacked=False):
 
 def positions(raw,stacked=False):
     value=validated(raw); order=value['order']
-    if stacked and order==list(IDS): order=['capture','hero','session','gallery','favorites','storage']
+    if stacked and not value['custom_order']: order=['capture','hero','session','gallery','favorites','storage']
     row=col=0; result={}
     for key in order:
         item=value['widgets'][key]
