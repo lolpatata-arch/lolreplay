@@ -8,7 +8,7 @@ class BackgroundTests(unittest.TestCase):
     def test_preferences(self):
         import lolreplay_backgrounds as b
         self.assertEqual(len(b.STYLES),5)
-        self.assertEqual(len(b.MODES),8)
+        self.assertEqual(len(b.MODES),9)
         self.assertEqual(b.validated({'mode':'video','path':123}),{'mode':'logo','path':''})
         for mode in b.MODES:
             self.assertEqual(b.validated({'mode':mode,'path':'/tmp/wall.png'})['mode'],mode)

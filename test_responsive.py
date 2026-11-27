@@ -122,7 +122,7 @@ sizes=((640,480),(800,600),(960,540),(1024,768),(1280,720),(1366,768),(1440,900)
 for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
-        assert w.settings_stack.count()==11
+        assert w.settings_stack.count()==12
         assert len(w.dashboard_cards)==4 and len(w.widgets_by_id)==20
         assert w.hub.objectName()=='commandHub' and w.dock.objectName()=='bottomDock'
         assert len(w.nav)==4 and all(b.parentWidget()==w.dock for b in w.nav)
@@ -220,8 +220,8 @@ for locale in LANGUAGES:
             assert w.apply_creative(original['design'],original['dashboard'],{})
             app.processEvents(); assert w.dashboard_hero.styleSheet()=='' and w.hub.isVisible()
         assert w.settings_list.objectName()=='settingsNavigation'
-        assert w.settings_list.count()==11 and w.settings_selector.count()==11
-        assert all(w.settings_list.item(i).data(Qt.ItemDataRole.UserRole+1) for i in range(11))
+        assert w.settings_list.count()==12 and w.settings_selector.count()==12
+        assert all(w.settings_list.item(i).data(Qt.ItemDataRole.UserRole+1) for i in range(12))
         assert len(w.settings_previews)==2
         assert set(w.pref_sliders)=={'text_scale','wallpaper_dim','refresh_ms'}
         w.navigate(3); app.processEvents()
@@ -243,13 +243,37 @@ for locale in LANGUAGES:
         assert w.background_preview.objectName()=='wallpaperPreview'
         assert w.background_btn.property('lrIcon')=='image'
         assert not w.background_btn.icon().isNull()
-        assert w.background_choice.count()==8
+        assert w.background_choice.count()==9
         for mode in ui.backgrounds.STYLES:
             w.save_background(mode); assert not w.art.selected_art().isNull(), mode
         custom_path=ui.HOME/'test-background.png'; custom=ui.QPixmap(640,360); custom.fill(ui.QColor('#ba1234')); assert custom.save(str(custom_path),'PNG')
         loaded=ui.backgrounds.load_image(str(custom_path)); assert not loaded.isNull()
         w.save_background('image',str(custom_path),loaded); assert not w.art.selected_art().isNull()
         assert ui.read_json(ui.UI_CONFIG)['replay_background']=={'mode':'image','path':str(custom_path)}
+        if locale=='en_US':
+            import base64
+            from unittest.mock import patch
+            import lolreplay_alive as alive
+            assert set(w.alive_controls)==set(alive.DEFAULTS)
+            w.set_app_background('image',str(custom_path)); assert not w.app_wallpaper.pix.isNull()
+            assert ui.read_json(ui.UI_CONFIG)['app_background']['path']==str(custom_path)
+            assert 'shellViewport' in app.styleSheet()
+            gif=ui.HOME/'motion.gif'; gif.write_bytes(base64.b64decode('R0lGODlhEAAQAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADwAAACwAAAAAEAAQAAAIHQABCBxIsKDBgwgTKlzIsKHDhxAjSpxIsaLFgQEBACH5BAEPAAEALAAAAAAQABAAgQAA/wAAAAAAAAAAAAgdAAEIHEiwoMGDCBMqXMiwocOHECNKnEixosWBAQEAOw=='))
+            with patch.object(w,'foreground',return_value=True):
+                w.set_alive('enabled',True)
+                w.set_app_background('image',str(gif)); assert not w.app_wallpaper.pix.isNull()
+                assert w.app_wallpaper.movie is not None and w.app_wallpaper.running
+                QTest.qWait(180)
+                assert w.app_wallpaper.movie.currentFrameNumber()>=0
+                w.set_alive('enabled',False); assert not w.app_wallpaper.running and not w.motion_engine.timer.isActive()
+                assert not w.alive_controls['hover'].isEnabled()
+                assert not w.app_wallpaper.pix.isNull()
+                w.set_alive('enabled',True); assert w.app_wallpaper.running
+                w.motion_engine.trigger(w.hub_save,'press'); assert w.hub_save in w.motion_engine.effects
+                w.set_alive('enabled',False); assert not w.motion_engine.effects
+                w.reset_alive()
+            w.set_app_background('none',''); assert w.app_wallpaper.pix.isNull() and not w.app_wallpaper.running
+            gif.unlink()
         custom_path.unlink(); w.save_background('image',str(custom_path)); assert w.art.selected_art().isNull()
         w.save_background('last_clip'); assert w.replay_background['mode']=='last_clip'
         if w.snapshot:
@@ -315,7 +339,7 @@ for locale in LANGUAGES:
                 assert w.editor.trim_scroll.height()>0 and w.editor.rail.height()>0
                 contained(w.editor.area,w.editor)
                 w.navigate(3); app.processEvents()
-                for category in range(11):
+                for category in range(12):
                     w.select_settings(category); app.processEvents()
                     assert w.settings_stack.currentIndex()==category
                     contained(w.settings_stack.currentWidget(),w.settings_stack)

@@ -9,7 +9,7 @@ if not args or args == ['ui']:
     target = bin_dir / 'lolreplay-ui'
     args = []
 elif args == ['--version']:
-    print('lolreplay 2.4.0')
+    print('lolreplay 2.5.0')
     sys.exit(0)
 elif args[0] == 'update':
     target = bin_dir / 'lolreplay_updater.py'
