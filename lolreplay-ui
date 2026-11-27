@@ -612,7 +612,6 @@ class Window(QMainWindow):
         positions=dashboard.positions(self.dashboard_layout,stacked)
         for key,card in self.widgets_by_id.items():
             item=self.dashboard_layout['widgets'][key]; visible=key in positions
-            card.setVisible(visible); self.widget_headers[key].setVisible(visible and self.dashboard_editing)
             width,height=self.widget_controls[key]
             for control,value in ((width,item['width']),(height,item['height'])):
                 old=control.blockSignals(True); control.setCurrentIndex(control.findData(value)); control.blockSignals(old)
@@ -622,6 +621,7 @@ class Window(QMainWindow):
             layout.setContentsMargins(margin,vertical,margin,vertical); layout.setSpacing({'compact':5,'normal':9,'large':13}[height_mode])
             card.setMinimumHeight(0 if height_mode!='large' else (300 if key not in dashboard.IDS[:4] else 420))
             if visible: grid.addWidget(card,*positions[key])
+            card.setVisible(visible); self.widget_headers[key].setVisible(visible and self.dashboard_editing)
         for col in range(1 if stacked else 3): grid.setColumnStretch(col,1)
         self.widget_empty.setVisible(not positions)
         self.widget_toolbar.setDirection(QBoxLayout.Direction.TopToBottom if compact and self.dashboard_editing else QBoxLayout.Direction.LeftToRight)

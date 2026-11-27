@@ -163,7 +163,11 @@ for locale in LANGUAGES:
         assert w.widget_disk.text()==w.disk.text()
         for key in dashboard.IDS[6:]: w.change_dashboard_widget(key,visible=True)
         app.processEvents()
-        assert all(card.isVisible() for card in w.widgets_by_id.values())
+        assert not w.overview_rail.isVisible(), 'Capture must stay hidden until restored'
+        assert all(card.isVisible() for key,card in w.widgets_by_id.items() if key!='capture'), [key for key,card in w.widgets_by_id.items() if key!='capture' and not card.isVisible()]
+        w.change_dashboard_widget('capture',visible=True); app.processEvents()
+        assert all(card.isVisible() for card in w.widgets_by_id.values()), [key for key,card in w.widgets_by_id.items() if not card.isVisible()]
+        assert w.overview_layout.count()==20
         assert w.widget_values['size'].text()==w.dashboard_size.text()
         assert w.widget_values['hotkey'].text()==(w.global_key or '—')
         assert w.widget_actions['quick_save'].isEnabled()==w.save_btn.isEnabled()
