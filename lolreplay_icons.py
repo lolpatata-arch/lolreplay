@@ -21,6 +21,15 @@ def icon(name, color='#c5c5cc', active=None):
         elif name=='settings':
             for y,x in ((5,7),(10,13),(15,9)):
                 path((3,y),(x-2,y)); path((x+2,y),(17,y)); circle(x,y,2)
+        elif name=='audio':
+            path((3,8),(7,8),(11,4),(11,16),(7,12),(3,12),(3,8)); p.drawArc(QRectF(8,5,10,10),-65*16,130*16)
+        elif name=='display':
+            rect(2.5,3.5,15,11); path((10,14.5),(10,17),(6,17),(14,17))
+        elif name=='keyboard':
+            rect(2,5,16,10); path((5,8),(6,8)); path((9,8),(10,8)); path((13,8),(14,8)); path((5,11),(6,11)); path((9,11),(14,11))
+        elif name=='system':
+            rect(5,5,10,10); rect(8,8,4,4); 
+            for n in (7,10,13): path((n,2),(n,5)); path((n,15),(n,18)); path((2,n),(5,n)); path((15,n),(18,n))
         elif name=='play': path((7,4),(16,10),(7,16),(7,4))
         elif name=='pause': path((7,4),(7,16)); path((13,4),(13,16))
         elif name=='stop': rect(5,5,10,10,1)
