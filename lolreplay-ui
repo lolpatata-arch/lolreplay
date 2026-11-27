@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 2.3.0: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 2.4.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
@@ -341,7 +341,7 @@ class Window(QMainWindow):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); dock.addWidget(b,1)
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.dock_row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
-        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.3.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row,2,0)
+        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.4.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row,2,0)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -594,6 +594,7 @@ class Window(QMainWindow):
         except OSError as exc:
             self.message.setText(str(exc)); self.reflow_dashboard(*self.dashboard_mode); return
         self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode); self.sync_creative_hub()
+        for preview in getattr(self,'settings_previews',[]): preview.update()
 
     def change_dashboard_widget(self,key,**values):
         self.save_dashboard_layout(dashboard.change(self.dashboard_layout,key,**values))
@@ -627,7 +628,7 @@ class Window(QMainWindow):
             card.setVisible(visible); self.widget_headers[key].setVisible(visible and self.dashboard_editing)
         for col in range(1 if stacked else 3): grid.setColumnStretch(col,1)
         self.widget_empty.setVisible(not positions)
-        self.widget_toolbar.setDirection(QBoxLayout.Direction.TopToBottom if compact and self.dashboard_editing else QBoxLayout.Direction.LeftToRight)
+        self.widget_toolbar.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
         self.console_layout.setDirection(QBoxLayout.Direction.TopToBottom)
         session_narrow=stacked or self.dashboard_layout['widgets']['session']['width']<3
         hero_narrow=stacked or self.dashboard_layout['widgets']['hero']['width']==1
@@ -1526,6 +1527,10 @@ class Window(QMainWindow):
         self.dock_layout.setContentsMargins(4,3,4,3) if compact else self.dock_layout.setContentsMargins(8,5,8,5)
         self.dock.setMaximumWidth(round(76*scale*dock_scale) if side else round((300 if icon_nav else 760)*scale*dock_scale) if floating else 16777215)
         self.dock.setMaximumHeight(round(320*scale*dock_scale) if side and floating else 16777215)
+        if side:
+            for b in self.nav: b.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred)
+        else:
+            for b in self.nav: b.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed)
         self.body_layout.setContentsMargins(body_pad,0,body_pad,0)
         self.body_layout.setSpacing(4 if compact else min(10,gap))
         self.state.setWordWrap(False)
@@ -1785,7 +1790,7 @@ class Window(QMainWindow):
         if self.prefs['strong_focus']:
             stylesheet+=f'\nQPushButton:focus,QCheckBox:focus,QComboBox:focus,QLineEdit:focus,QAbstractSpinBox:focus {{border:2px solid {bright};}} QListWidget#tiles:focus {{border:1px solid {bright};}}'
         if d['font']!='default': stylesheet=stylesheet.replace('font-family:"Inter","Noto Sans",sans-serif;',f"font-family:{d['font']};")
-        if d['weight']!='default': stylesheet+=f"\nQWidget {{font-weight:{ {'normal':400,'medium':500,'bold':700}[d['weight']]} ;}}"
+        if d['weight']!='default': stylesheet+=f"\nQWidget,QPushButton,QComboBox,QLineEdit {{font-weight:{ {'normal':400,'medium':500,'bold':700}[d['weight']]} ;}}"
         if d['radius']>=0: stylesheet+=f'\nQFrame#commandHub,QFrame#bottomDock,QFrame#playerPane,QFrame#rail,QFrame#editorStage,QFrame#panel {{border-radius:{radius}px;}}'
         app.setStyleSheet(stylesheet)
         for key,card in self.widgets_by_id.items():
@@ -1879,7 +1884,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.3.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.4.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -2188,7 +2193,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 2.3.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 2.4.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -2237,4 +2242,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.3.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.4.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())

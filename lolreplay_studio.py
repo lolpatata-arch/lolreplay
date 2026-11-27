@@ -2,7 +2,7 @@
 from copy import deepcopy
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPainter, QPen, QFont
-from PySide6.QtWidgets import (QDialog,QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QLabel,QPushButton,QCheckBox,QSpinBox,QColorDialog,QInputDialog,QScrollArea,QSizePolicy)
+from PySide6.QtWidgets import (QDialog,QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QLabel,QPushButton,QCheckBox,QSpinBox,QColorDialog,QInputDialog,QScrollArea,QSizePolicy,QMessageBox)
 from lolreplay_i18n import t
 from lolreplay_widgets import fit_combo
 import lolreplay_creative as creative
@@ -77,6 +77,9 @@ class CreativeStudio(QDialog):
             control=QSpinBox(); control.setRange(lo,hi); control.setSuffix(suffix)
             if lo==-1: control.setSpecialValueText(t('Automatic'))
             control.valueChanged.connect(lambda value,k=key:self.change(k,value)); self.controls[key]=control; form.addRow(t(title),control)
+        def section(title):
+            label=QLabel(t(title)); label.setObjectName('settingsHeading'); form.addRow(label)
+        section('Interface layout')
         self.preset=fit_combo(QComboBox()); self.preset.addItem(t('Select preset'),None)
         for name in creative.PRESETS: self.preset.addItem(name,name)
         self.preset.activated.connect(self.choose_preset); form.addRow(t('Interface style'),self.preset)
@@ -86,6 +89,7 @@ class CreativeStudio(QDialog):
         combo('dock_mode','Dock style',(('auto','Automatic'),('floating','Floating'),('full','Full width')))
         combo('dock_labels','Dock labels',(('auto','Automatic'),('icons','Icons only'),('text','Text and icons')))
         number('dock_size','Dock size',80,130,'%')
+        section('Appearance')
         combo('font','Font family',(('default','Automatic'),('sans-serif','Sans serif'),('serif','Serif'),('monospace','Monospace')))
         combo('weight','Font weight',(('default','Automatic'),('normal','Normal'),('medium','Medium'),('bold','Bold')))
         number('radius','Corner radius',-1,24,' px'); number('gap','Widget spacing',-1,24,' px'); number('margin','Outer margin',-1,24,' px'); number('opacity','Surface opacity',55,100,'%')
@@ -94,12 +98,14 @@ class CreativeStudio(QDialog):
         for key,title in (('bg','Background'),('surface','Panels'),('border','Borders'),('accent','Accent')):
             b=QPushButton(); b.clicked.connect(lambda checked=False,k=key:self.pick_palette(k)); self.colors[key]=b
             row=QHBoxLayout(); row.addWidget(b,1); clear=QPushButton(t('Reset')); clear.clicked.connect(lambda checked=False,k=key:self.set_palette(k,'')); row.addWidget(clear); form.addRow(t(title),row)
+        section('Widget appearance')
         self.widget=fit_combo(QComboBox())
         for key in dashboard.IDS: self.widget.addItem(t(dashboard.NAMES[key]),key)
         self.widget.currentIndexChanged.connect(self.sync_widget); form.addRow(t('Widget appearance'),self.widget)
         self.widget_color=QPushButton(); self.widget_color.clicked.connect(self.pick_widget); form.addRow(t('Background'),self.widget_color)
         self.widget_radius=QSpinBox(); self.widget_radius.setRange(-1,24); self.widget_radius.setSpecialValueText(t('Automatic')); self.widget_radius.valueChanged.connect(self.change_widget_radius); form.addRow(t('Corner radius'),self.widget_radius)
         reset_widget=QPushButton(t('Reset')); reset_widget.clicked.connect(lambda:self.change_widget({})); form.addRow(reset_widget)
+        section('Saved designs')
         self.profile=fit_combo(QComboBox()); form.addRow(t('Saved designs'),self.profile)
         row=QHBoxLayout()
         for name,fn in (('Load',self.load_profile),('Save design',self.save_profile),('Delete',self.delete_profile)):
@@ -158,12 +164,15 @@ class CreativeStudio(QDialog):
         name,ok=QInputDialog.getText(self,t('Save design'),t('Design name'))
         name=name.strip()
         if ok and 1<=len(name)<=48 and (name in self.saved or len(self.saved)<16):
+            if name in self.saved and QMessageBox.question(self,t('Save design'),t('Replace saved design?'))!=QMessageBox.StandardButton.Yes: return
             self.saved[name]=deepcopy(self.history.current); self.sync_profiles(); self.profile.setCurrentIndex(self.profile.findData(name))
     def load_profile(self):
         name=self.profile.currentData()
         if name in self.saved: self.history.push(self.saved[name]); self.sync()
     def delete_profile(self):
-        self.saved.pop(self.profile.currentData(),None); self.sync_profiles()
+        name=self.profile.currentData()
+        if name in self.saved and QMessageBox.question(self,t('Delete'),t('Delete saved design?'))==QMessageBox.StandardButton.Yes:
+            self.saved.pop(name); self.sync_profiles()
     def apply(self):
         state=self.history.current
         if self.window.apply_creative(state['design'],state['dashboard'],self.saved): self.accept()

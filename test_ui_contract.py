@@ -15,9 +15,9 @@ class UIContractTests(unittest.TestCase):
             self.assertTrue(callable(getattr(compositor,name,None)),name)
 
     def test_release_version(self):
-        self.assertIn("setApplicationVersion('2.3.0')",(ROOT/'lolreplay-ui').read_text())
-        self.assertIn("self.footer_meta.setText('v2.3.0",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("setApplicationVersion('2.4.0')",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("self.footer_meta.setText('v2.4.0",(ROOT/'lolreplay-ui').read_text())
         # Keep the release updater baseline unchanged until 1.3 is published.
-        self.assertIn("print('lolreplay 2.3.0')",(ROOT/'lolreplay').read_text())
+        self.assertIn("print('lolreplay 2.4.0')",(ROOT/'lolreplay').read_text())
 
 if __name__=='__main__': unittest.main()
