@@ -79,14 +79,32 @@ class ResponsiveTests(unittest.TestCase):
         # Use a separate process and temporary home; do not touch the user's library.
         script = r'''
 import importlib.machinery, importlib.util
-from PySide6.QtCore import Qt, QPoint, QSize, QCoreApplication, QEvent
+from PySide6.QtCore import Qt, QPoint, QSize, QCoreApplication, QEvent, QObject, Signal
 from PySide6.QtWidgets import QApplication, QScrollArea
 from PySide6.QtTest import QTest
-from lolreplay_widgets import SeekSlider
+from lolreplay_widgets import SeekSlider, PlaybackSpeedButton
 from lolreplay_i18n import set_language, LANGUAGES
 from lolreplay_preferences import media_stacked, OPTIONS
 from lolreplay_shortcuts import LABELS
 app=QApplication([]); app.setStyle('Fusion')
+class RatePlayer(QObject):
+    playbackRateChanged=Signal(float)
+    def __init__(self):
+        super().__init__(); self.rate=1.
+    def playbackRate(self): return self.rate
+    def setPlaybackRate(self,rate):
+        self.rate=rate; self.playbackRateChanged.emit(rate)
+fake=RatePlayer()
+button=PlaybackSpeedButton(fake,lambda p:fake.setPlaybackRate(p/100))
+assert button.text()=='1×' and button.rate_actions[100].isChecked()
+for percent in (25,50,75,100,125,150,175,200):
+    button.rate_actions[percent].trigger()
+    assert fake.playbackRate()==percent/100
+    assert button.text()==f'{percent/100:g}×'
+    assert sum(a.isChecked() for a in button.rate_actions.values())==1
+fake.setPlaybackRate(.75); assert button.text()=='0.75×'
+button.deleteLater()
+
 s=SeekSlider(); s.setRange(0,120000); s.resize(400,30); s.show(); app.processEvents()
 values=[]; s.seekRequested.connect(values.append)
 for x,expected in ((0,0),(200,60000),(399,120000)):
@@ -207,11 +225,27 @@ for locale in LANGUAGES:
                 assert w.library_split.orientation()==w.editor.area.orientation()
                 if (width,height)==(720,1280): assert w.library_split.orientation()==Qt.Orientation.Vertical
                 if (width,height)==(1920,1080): assert w.library_split.orientation()==Qt.Orientation.Horizontal
-        if w.preview_path and w.player:
-            w.navigate(1); app.processEvents()
-            dialog=ui.show_fullscreen(w,w.player,w.video,w.play); app.processEvents()
-            assert w.player.videoOutput()==dialog.video
-            dialog.reject(); app.processEvents(); assert w.player.videoOutput()==w.video
+        if w.player and w.list.count():
+            w.navigate(1); w.list.setCurrentRow(0); app.processEvents()
+            assert w.speed_btn.isEnabled()
+            source=w.player.source(); state=w.player.playbackState()
+            from unittest.mock import patch
+            with patch.object(w,'apply_theme',side_effect=AssertionError('rate change rebuilt theme')), patch.object(w,'refresh_library',side_effect=AssertionError('rate change refreshed library')):
+                w.speed_btn.rate_actions[175].trigger()
+                assert w.prefs['playback_speed']==175 and w.player.playbackRate()==1.75
+                assert w.speed_btn.text()=='1.75×'
+                assert w.pref_controls['playback_speed'].currentData()==175
+                assert ui.read_json(ui.UI_CONFIG)['preferences']['playback_speed']==175
+                assert w.player.source()==source and w.player.playbackState()==state
+                dialog=ui.show_fullscreen(w,w.player,w.video,w.play); app.processEvents()
+                assert w.player.videoOutput()==dialog.video and dialog.speed_btn.text()=='1.75×'
+                dialog.speed_btn.rate_actions[50].trigger()
+                assert w.speed_btn.text()=='0.5×' and w.player.playbackRate()==.5
+                assert w.pref_controls['playback_speed'].currentData()==50
+                dialog.reject(); app.processEvents(); assert w.player.videoOutput()==w.video
+                w.set_playback_speed(100)
+                assert w.speed_btn.text()=='1×'
+            w.list.setCurrentRow(-1); app.processEvents(); assert not w.speed_btn.isEnabled()
     finally:
         w.exiting=True; w.close(); w.deleteLater(); QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete.value); app.processEvents()
 '''
