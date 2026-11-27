@@ -78,6 +78,6 @@ class PerformanceTests(unittest.TestCase):
             self.assertEqual(len(list(legacy.parent.glob('lolreplay.svg.bak-*'))),1)
             p=subprocess.run([sys.executable,str(home/'.local/bin/lolreplay'),'--version'],env=env,capture_output=True,text=True)
             self.assertEqual(p.returncode,0,p.stderr)
-            self.assertEqual(p.stdout.strip(),'lolreplay 2.2.0')
+            self.assertEqual(p.stdout.strip(),'lolreplay 2.3.0')
 
 if __name__=='__main__': unittest.main()

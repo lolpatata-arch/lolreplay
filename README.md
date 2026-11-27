@@ -4,11 +4,13 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v2.2.0 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v2.3.0 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
 ## Features
+
+- Modular Replay dashboard: twenty configurable widgets, grouped widget catalog, drag-handle or arrow reordering, three column widths and height presets, hide/add controls, automatic local persistence and factory reset. The command hub is always available. Existing Overdrive arrangement is the default.
 
 - Control Center: searchable settings with direct navigation to real controls, illustrated categories, two live shell previews, switch controls and stepped sliders. All existing settings and configuration files remain compatible.
 

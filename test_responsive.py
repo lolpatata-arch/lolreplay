@@ -123,7 +123,7 @@ for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
         assert w.settings_stack.count()==11
-        assert len(w.dashboard_cards)==4
+        assert len(w.dashboard_cards)==4 and len(w.widgets_by_id)==20
         assert w.hub.objectName()=='commandHub' and w.dock.objectName()=='bottomDock'
         assert len(w.nav)==4 and all(b.parentWidget()==w.dock for b in w.nav)
         assert w.outer_layout.itemAt(0).widget()==w.hub
@@ -141,6 +141,48 @@ for locale in LANGUAGES:
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.dashboard_session))==(1,0,1,3)
         w.reflow_dashboard(True,True)
         assert w.overview_layout.getItemPosition(w.overview_layout.indexOf(w.overview_rail))==(0,0,1,1)
+        w.navigate(0); app.processEvents()
+        import lolreplay_dashboard as dashboard
+        assert w.dashboard_layout==dashboard.defaults()
+        assert not w.dashboard_favorite_card.isVisible() and not w.dashboard_storage_card.isVisible()
+        w.reflow_dashboard(False,False)
+        w.toggle_widget_edit(True); app.processEvents()
+        assert w.widget_headers['hero'].isVisible()
+        w.widget_controls['hero'][0].setCurrentIndex(0)
+        assert w.dashboard_layout['widgets']['hero']['width']==1
+        w.widget_controls['hero'][1].setCurrentIndex(2)
+        assert w.dashboard_layout['widgets']['hero']['height']=='large' and w.art.minimumHeight()==460
+        w.move_dashboard_widget('gallery','hero')
+        assert w.dashboard_layout['order'][0]=='gallery'
+        w.change_dashboard_widget('capture',visible=False)
+        assert w.overview_layout.indexOf(w.overview_rail)==-1 and not w.overview_rail.isVisible()
+        assert w.hub.isVisible() and w.hub_save.isEnabled()==w.save_btn.isEnabled()
+        w.change_dashboard_widget('favorites',visible=True); w.change_dashboard_widget('storage',visible=True); app.processEvents()
+        assert w.dashboard_favorite_card.isVisible() and w.dashboard_storage_card.isVisible()
+        assert w.widget_favorite_count.text()==w.dashboard_favorites.text()
+        assert w.widget_disk.text()==w.disk.text()
+        for key in dashboard.IDS[6:]: w.change_dashboard_widget(key,visible=True)
+        app.processEvents()
+        assert not w.overview_rail.isVisible(), 'Capture must stay hidden until restored'
+        assert all(card.isVisible() for key,card in w.widgets_by_id.items() if key!='capture'), [key for key,card in w.widgets_by_id.items() if key!='capture' and not card.isVisible()]
+        w.change_dashboard_widget('capture',visible=True); app.processEvents()
+        assert all(card.isVisible() for card in w.widgets_by_id.values()), [key for key,card in w.widgets_by_id.items() if not card.isVisible()]
+        assert w.overview_layout.count()==20
+        assert w.widget_values['size'].text()==w.dashboard_size.text()
+        assert w.widget_values['hotkey'].text()==(w.global_key or '—')
+        assert w.widget_actions['quick_save'].isEnabled()==w.save_btn.isEnabled()
+        assert w.widget_actions['mic'].isEnabled()==w.mic_btn.isEnabled()
+        assert w.widget_values['duration'].text()==w.format_duration_label(w.duration)
+        assert w.widget_values['buffer'].text()==w.dashboard_history.text()
+        assert w.widget_actions['latest'].isEnabled()==bool(w.snapshot)
+        assert len(w.widget_activity)==7
+        assert w.widget_values['today'].text()==str(w.widget_summary['counts'][-1])
+        assert ui.read_json(ui.UI_CONFIG)['dashboard_layout']==w.dashboard_layout
+        for key in dashboard.IDS: w.change_dashboard_widget(key,visible=False)
+        assert not w.widget_empty.isHidden() and w.overview_layout.count()==0
+        w.reset_dashboard(); w.toggle_widget_edit(False)
+        assert w.dashboard_layout==dashboard.defaults() and all(h.isHidden() for h in w.widget_headers.values())
+        assert ui.read_json(ui.UI_CONFIG)['dashboard_layout']==dashboard.defaults()
         w.update_layout(force=True)
         assert w.settings_list.objectName()=='settingsNavigation'
         assert w.settings_list.count()==11 and w.settings_selector.count()==11

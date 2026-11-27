@@ -1,8 +1,8 @@
 """Shared responsive widgets. Geometry is in Qt logical pixels (HiDPI aware)."""
-from PySide6.QtCore import Qt, QSize, Signal, QRectF
+from PySide6.QtCore import Qt, QSize, Signal, QRectF, QMimeData
 from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget, QStackedWidget, QComboBox, QPushButton, QMenu
 
-from PySide6.QtGui import QPainter, QColor, QPen
+from PySide6.QtGui import QPainter, QColor, QPen, QDrag
 import unicodedata
 from lolreplay_i18n import t
 from lolreplay_preferences import OPTIONS
@@ -10,6 +10,38 @@ from lolreplay_preferences import OPTIONS
 
 def search_normalized(value):
     return ' '.join(''.join(ch for ch in unicodedata.normalize('NFKD',str(value).casefold()) if not unicodedata.combining(ch)).split())
+
+
+class WidgetDragHandle(QPushButton):
+    """Drag only from explicit edit handles; normal video/buttons keep their behavior."""
+    moved=Signal(str,str)
+    MIME='application/x-lolreplay-dashboard-widget'
+    def __init__(self,key,parent=None):
+        super().__init__('⠿',parent); self.key=key; self.origin=None
+        self.setObjectName('widgetHandle'); self.setAcceptDrops(True)
+        self.setCursor(Qt.CursorShape.OpenHandCursor); self.setAccessibleName(t('Drag to reorder')); self.setToolTip(t('Drag to reorder'))
+    def mousePressEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton: self.origin=event.position().toPoint()
+        super().mousePressEvent(event)
+    def mouseMoveEvent(self,event):
+        if self.origin is not None and event.buttons() & Qt.MouseButton.LeftButton and (event.position().toPoint()-self.origin).manhattanLength()>=8:
+            self.origin=None; self.setDown(False); mime=QMimeData(); mime.setData(self.MIME,self.key.encode('utf-8')); drag=QDrag(self); drag.setMimeData(mime); drag.exec(Qt.DropAction.MoveAction)
+            return
+        super().mouseMoveEvent(event)
+    def mouseReleaseEvent(self,event):
+        self.origin=None; super().mouseReleaseEvent(event)
+    def dragEnterEvent(self,event):
+        if isinstance(event.source(),WidgetDragHandle) and event.mimeData().hasFormat(self.MIME) and event.source().key!=self.key:
+            event.acceptProposedAction(); self.setProperty('dropTarget',True); self.style().unpolish(self); self.style().polish(self)
+    def dragLeaveEvent(self,event):
+        self.clear_target(); super().dragLeaveEvent(event)
+    def clear_target(self):
+        self.setProperty('dropTarget',False); self.style().unpolish(self); self.style().polish(self)
+    def dropEvent(self,event):
+        self.clear_target()
+        source=event.source()
+        if isinstance(source,WidgetDragHandle) and event.mimeData().hasFormat(self.MIME) and source.key!=self.key:
+            event.acceptProposedAction(); self.moved.emit(source.key,self.key)
 
 
 class SettingSwitch(QCheckBox):
