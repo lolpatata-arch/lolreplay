@@ -44,24 +44,28 @@ class WallpaperSource(QObject):
             player=self.player; self.player=None; player.stop(); player.setVideoSink(None); player.deleteLater()
         if self.sink: self.sink.deleteLater(); self.sink=None
         self.pix=QPixmap(); self.still=QPixmap(); self.last_frame=0.; self.error=False
-    def load(self,mode,path):
+    def load(self,mode,path,pix=None):
         if (mode,path)==(self.mode,self.path): return
         self.clear(); self.mode=mode; self.path=path
         if mode=='image':
-            self.still=backgrounds.load_image(path); self.pix=self.still
+            self.still=pix if pix is not None else backgrounds.load_image(path); self.pix=self.still
             if not self.still.isNull():
-                reader=QImageReader(path)
+                reader=QImageReader(str(Path(path).expanduser()))
                 if reader.supportsAnimation():
                     size=reader.size()
                     if 0<size.width()*size.height()<=MAX_FRAME_PIXELS:
-                        self.movie=QMovie(path,parent=self); self.movie.setCacheMode(QMovie.CacheMode.CacheNone)
+                        self.movie=QMovie(str(Path(path).expanduser()),parent=self); self.movie.setCacheMode(QMovie.CacheMode.CacheNone)
                         self.movie.setScaledSize(size.scaled(QSize(1280,720),Qt.AspectRatioMode.KeepAspectRatio)); self.movie.frameChanged.connect(self.movie_frame); self.movie.finished.connect(self.movie_finished); self.movie.error.connect(self.mark_error)
             else: self.error=True
         elif mode=='video':
             if not valid_file(mode,path): self.error=True
         self.changed.emit()
     def mark_error(self,*_):
-        self.error=True; self.running=False; self.failed.emit()
+        if self.error: return
+        self.error=True; self.running=False
+        if self.movie: self.movie.stop()
+        if self.player: self.player.stop()
+        self.failed.emit()
     def movie_frame(self,*_):
         if not self.running or not self.movie: return
         now=time.monotonic()
@@ -96,7 +100,7 @@ class WallpaperSource(QObject):
             if not self.player:
                 self.player=QMediaPlayer(self); self.sink=QVideoSink(self); self.player.setVideoSink(self.sink)
                 self.sink.videoFrameChanged.connect(self.video_frame); self.player.errorOccurred.connect(self.mark_error)
-                self.player.setLoops(-1); self.player.setSource(QUrl.fromLocalFile(self.path))
+                self.player.setLoops(-1); self.player.setSource(QUrl.fromLocalFile(str(Path(self.path).expanduser().absolute())))
             self.player.setPlaybackRate(speed/100)
             if not self.running and not self.error: self.running=True; self.player.play()
         elif self.player and self.running: self.running=False; self.player.pause()
@@ -110,4 +114,6 @@ class WallpaperRoot(QWidget):
     def paintEvent(self,event):
         p=QPainter(self); window=self.window; settings=window.alive
         source=window.app_wallpaper
-        draw_wallpaper(p,self.rect(),source.pix,settings['wallpaper_fit'],settings['wallpaper_dim'],window.palette_for()[0]); p.end()
+        bg=window.palette_for()[0]
+        if window.app_background['mode']=='none': bg=QColor(bg).darker(125).name()
+        draw_wallpaper(p,self.rect(),source.pix,settings['wallpaper_fit'],settings['wallpaper_dim'],bg); p.end()

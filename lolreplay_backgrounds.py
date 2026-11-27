@@ -5,8 +5,8 @@ from PySide6.QtCore import Qt, QSize, QRectF, QPointF
 from PySide6.QtGui import QImageReader, QPixmap, QPainter, QColor, QLinearGradient, QRadialGradient, QPen, QBrush
 
 STYLES=('crimson','amoled','midnight','grid','horizon')
-MODES=('logo',*STYLES,'last_clip','image')
-LABELS={'logo':'Classic logo','crimson':'Crimson Glow','amoled':'AMOLED Minimal','midnight':'Midnight Orbit','grid':'Cyber Grid','horizon':'Crimson Horizon','last_clip':'Latest clip','image':'Custom image'}
+MODES=('logo',*STYLES,'last_clip','image','video')
+LABELS={'logo':'Classic logo','crimson':'Crimson Glow','amoled':'AMOLED Minimal','midnight':'Midnight Orbit','grid':'Cyber Grid','horizon':'Crimson Horizon','last_clip':'Latest clip','image':'Custom image','video':'Local video'}
 MAX_PIXELS=64_000_000
 MAX_FILE=32*1024*1024
 CANVAS=QSize(1280,720)
@@ -16,6 +16,7 @@ def validated(raw):
     mode=raw.get('mode')
     path=raw.get('path','')
     if not isinstance(path,str) or '\x00' in path or len(path)>4096: path=''
+    if mode=='video' and not path: mode='logo'
     return {'mode':mode if isinstance(mode,str) and mode in MODES else 'logo','path':path}
 
 def load_image(path):

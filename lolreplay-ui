@@ -9,6 +9,9 @@ import lolreplay_backgrounds as backgrounds
 import lolreplay_visual as visual
 import lolreplay_dashboard as dashboard
 import lolreplay_creative as creative
+import lolreplay_alive as alive
+from lolreplay_motion import MotionEngine, MotionButton, MotionTitle
+from lolreplay_wallpaper import WallpaperSource, WallpaperRoot, valid_file as valid_wallpaper
 from lolreplay_studio import CreativeStudio, StudioPreview
 import lolreplay_shortcuts as keys
 import os
@@ -75,10 +78,10 @@ def write_ui(value):
     tmp.replace(UI_CONFIG)
 
 def label(text, name=''):
-    x=QLabel(text); x.setTextFormat(Qt.TextFormat.PlainText); x.setObjectName(name); x.setWordWrap(name=='muted'); return x
+    x=MotionTitle(text) if name=='heading' else QLabel(text); x.setTextFormat(Qt.TextFormat.PlainText); x.setObjectName(name); x.setWordWrap(name=='muted'); return x
 
 def button(text, fn, name=''):
-    x=QPushButton(text); x.setObjectName(name); x.setCursor(Qt.CursorShape.PointingHandCursor); x.clicked.connect(fn); return x
+    x=MotionButton(text); x.setObjectName(name); x.setCursor(Qt.CursorShape.PointingHandCursor); x.clicked.connect(fn); return x
 
 def panel():
     x=QFrame(); x.setObjectName('panel'); return x
@@ -213,7 +216,9 @@ class Artwork(QWidget):
     def selected_art(self):
         mode=self.window.replay_background['mode']
         if mode=='last_clip': return self.pix
-        if mode=='image': return self.custom_pix
+        if mode in ('image','video'):
+            pix=self.window.art_wallpaper.pix
+            return pix if not pix.isNull() else self.custom_pix
         if mode in backgrounds.STYLES:
             if mode not in self.wallpapers: self.wallpapers={mode:backgrounds.preset(mode,self.window.logo)}
             return self.wallpapers[mode]
@@ -271,6 +276,7 @@ class Artwork(QWidget):
             f.setPixelSize(11); f.setWeight(QFont.Weight.Normal); p.setFont(f); p.setPen(QColor('#b5b5bf'))
             hint=(t('Save {0}',self.window.format_duration_label(self.window.duration))+' · '+(self.window.global_key or '—')) if active is True else t('Start replay to capture.')
             p.drawText(QRect(x,h-32,tw,24),Qt.AlignmentFlag.AlignVCenter,p.fontMetrics().elidedText(hint,Qt.TextElideMode.ElideRight,tw))
+        self.window.motion_engine.paint_ambient(p,r)
         p.setClipping(False); p.setBrush(Qt.BrushStyle.NoBrush); p.setPen(QPen(QColor(border),1)); p.drawRoundedRect(QRectF(r.adjusted(1,1,-1,-1)),design.radius,design.radius)
         p.end()
 
@@ -305,7 +311,7 @@ class Window(QMainWindow):
         self.setWindowIcon(QIcon(str(icon)))
         self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
         preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Obsidian'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
-        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences')); self.dashboard_layout=dashboard.validated(preferences.get('dashboard_layout')); self.dashboard_editing=False; self.creative_design=creative.validated(preferences.get('creative_design')); self.creative_profiles=creative.profiles(preferences.get('creative_profiles')); self._shell_positions=('top','bottom')
+        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences')); self.dashboard_layout=dashboard.validated(preferences.get('dashboard_layout')); self.dashboard_editing=False; self.creative_design=creative.validated(preferences.get('creative_design')); self.creative_profiles=creative.profiles(preferences.get('creative_profiles')); self._shell_positions=('top','bottom'); self.alive=alive.validated(preferences.get('alive')); self.app_background=alive.wallpaper(preferences.get('app_background')); self.motion_engine=MotionEngine(self); self.app_wallpaper=WallpaperSource(self); self.art_wallpaper=WallpaperSource(self)
         raw_volume=preferences.get('playback_volume',45)
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
@@ -321,7 +327,7 @@ class Window(QMainWindow):
         self.probe=QProcess(self); self.probe.finished.connect(self.duration_done); self.probe.errorOccurred.connect(self.duration_error)
         self.probe_watch=QTimer(self); self.probe_watch.setSingleShot(True); self.probe_watch.timeout.connect(self.probe.kill)
         self.thumb_watch=QTimer(self); self.thumb_watch.setSingleShot(True); self.thumb_watch.timeout.connect(self.thumb.kill)
-        root=QWidget(); root.setObjectName('shellRoot'); self.setCentralWidget(root); outer=QGridLayout(root); self.outer_layout=outer; outer.setContentsMargins(14,10,14,8); outer.setSpacing(8)
+        root=WallpaperRoot(self); self.root=root; root.setObjectName('shellRoot'); self.setCentralWidget(root); outer=QGridLayout(root); self.outer_layout=outer; outer.setContentsMargins(14,10,14,8); outer.setSpacing(8)
         # Permanent command hub: brand, recorder controls and status are independent of the active page.
         self.hub=QFrame(); self.hub.setObjectName('commandHub'); top=QHBoxLayout(self.hub); self.top_layout=top; top.setContentsMargins(14,8,14,8); top.setSpacing(10)
         self.brand_mark=QLabel(); self.brand_mark.setObjectName('hubMark'); self.brand_mark.setPixmap(self.logo.pixmap(QSize(34,34))); self.brand_mark.setFixedSize(34,34); top.addWidget(self.brand_mark)
@@ -335,8 +341,8 @@ class Window(QMainWindow):
         self.hub_toggle=decorate(button(t('Start'),self.toggle_hub_capture,'hubToggle'),'play'); self.hub_toggle.setAccessibleName(t('Start')); self.hub_toggle.setEnabled(False); top.addWidget(self.hub_toggle)
         self.hub_save=decorate(button(t('Save clip'),lambda:self.run('save'),'hubSave'),'save','#ffffff'); self.hub_save.setAccessibleName(t('Save clip')); self.hub_save.setEnabled(False); top.addWidget(self.hub_save)
         outer.addWidget(self.hub,0,0)
-        body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(12,0,12,0); col.setSpacing(6)
-        self.stack=PageStack(); self.nav=[]; self.nav_names=[]; self.page_kickers=[]
+        body=QWidget(); body.setObjectName('shellBody'); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(12,0,12,0); col.setSpacing(6)
+        self.stack=PageStack(); self.stack.setObjectName('shellPages'); self.nav=[]; self.nav_names=[]; self.page_kickers=[]; self.page_titles=[]
         self.breadcrumb=label(t('Capture'),'eyebrow'); self.breadcrumb.hide()
         col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setObjectName('footerMessage'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); self.message.setMaximumHeight(42); col.addWidget(self.message); outer.addWidget(body,1,0); outer.setRowStretch(1,1); outer.setColumnStretch(0,1)
         # Floating dock centered at the bottom; never overlays video or scrollable content.
@@ -346,6 +352,8 @@ class Window(QMainWindow):
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.dock_row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
         self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.4.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row,2,0)
+        self.app_wallpaper.changed.connect(self.root.update); self.app_wallpaper.failed.connect(self.wallpaper_failed)
+        self.app_wallpaper.load(self.app_background['mode'],self.app_background['path'])
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -354,7 +362,7 @@ class Window(QMainWindow):
         self.setup_tray(); self.closing=False
         QApplication.instance().applicationStateChanged.connect(self.application_state_changed)
         self.application_state_changed(QApplication.instance().applicationState())
-        self._responsive_ready=True; self.update_layout(force=True)
+        self._responsive_ready=True; self.update_layout(force=True); self.sync_alive()
 
     def toggle_hub_capture(self):
         if self.pending is not None: return
@@ -362,12 +370,15 @@ class Window(QMainWindow):
         elif self.active is False and getattr(self,'config_valid',True): self.run('start')
 
     def page(self,title,sub,scroll=True):
-        w=QWidget(); v=QVBoxLayout(w); v.setContentsMargins(0,0,0,0); v.setSpacing(10)
+        w=QWidget(); w.setObjectName('shellPage'); v=QVBoxLayout(w); v.setContentsMargins(0,0,0,0); v.setSpacing(10)
         head=QHBoxLayout(); head.setSpacing(10)
         number=label(f'{self.stack.count()+1:02d} / 04','pageIndex'); self.page_kickers.append(number); head.addWidget(number)
-        head.addWidget(label(title,'heading')); head.addStretch()
+        title_widget=label(title,'heading'); self.page_titles.append(title_widget); head.addWidget(title_widget); head.addStretch()
         if sub: head.addWidget(label(sub,'muted'))
-        v.addLayout(head); self.stack.addWidget(PageScroll(w) if scroll else w); return v
+        v.addLayout(head)
+        page=PageScroll(w) if scroll else w
+        if scroll: self.transparent_scroll(page)
+        self.stack.addWidget(page); return v
 
     def setup_tiles(self, view, width=220):
         view.setViewMode(QListWidget.ViewMode.IconMode); view.setResizeMode(QListWidget.ResizeMode.Adjust)
@@ -394,7 +405,8 @@ class Window(QMainWindow):
         self.dashboard_hero,fv=card('dashboardHero'); fv.setContentsMargins(9,9,9,10)
         heading=QHBoxLayout(); heading.setContentsMargins(5,0,5,0); self.art_heading=label(t('Replay background'),'eyebrow'); heading.addWidget(self.art_heading); heading.addStretch()
         heading.addWidget(decorate(button(t('All clips'),lambda:self.navigate(1),'quiet'),'arrow')); fv.addLayout(heading)
-        self.art=Artwork(self); self.art.custom_pix=backgrounds.load_image(self.replay_background['path']) if self.replay_background['mode']=='image' else QPixmap(); self.art.setMinimumHeight(250); fv.addWidget(self.art,1)
+        self.art=Artwork(self); self.art_wallpaper.changed.connect(self.art.update); self.art_wallpaper.failed.connect(self.wallpaper_failed)
+        self.art_wallpaper.load(self.replay_background['mode'],self.replay_background['path']); self.art.custom_pix=self.art_wallpaper.still; self.art.setMinimumHeight(250); fv.addWidget(self.art,1)
         details=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.latest_details=details; details.setContentsMargins(5,0,5,0); info=QVBoxLayout(); info.setSpacing(3)
         self.latest_title=label(t('No recordings yet'),'section'); self.latest_title.setWordWrap(True); self.latest_title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); info.addWidget(self.latest_title)
         self.latest_meta=label(self.hotkey_text('Start replay, then press F8 to save a clip.'),'muted'); self.latest_meta.setWordWrap(True); info.addWidget(self.latest_meta); details.addLayout(info,1)
@@ -597,7 +609,7 @@ class Window(QMainWindow):
         try: write_ui({**read_json(UI_CONFIG),'dashboard_layout':value})
         except OSError as exc:
             self.message.setText(str(exc)); self.reflow_dashboard(*self.dashboard_mode); return
-        self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode); self.sync_creative_hub()
+        self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode); self.sync_creative_hub(); self.sync_alive()
         for preview in getattr(self,'settings_previews',[]): preview.update()
 
     def change_dashboard_widget(self,key,**values):
@@ -1003,8 +1015,8 @@ class Window(QMainWindow):
         self.refresh_library(force=True)
 
     def settings_tab(self,tabs,name):
-        content=QWidget(); layout=QVBoxLayout(content); layout.setContentsMargins(6,10,10,12); layout.setSpacing(14)
-        scroll=PageScroll(content); tabs.addWidget(scroll)
+        content=QWidget(); content.setObjectName('shellPage'); layout=QVBoxLayout(content); layout.setContentsMargins(6,10,10,12); layout.setSpacing(14)
+        scroll=PageScroll(content); self.transparent_scroll(scroll); tabs.addWidget(scroll)
         self.settings_list.addItem(name); self.settings_selector.addItem(name)
         heading=label(name,'settingsHeading'); heading.setWordWrap(True); layout.addWidget(heading)
         return layout
@@ -1027,12 +1039,17 @@ class Window(QMainWindow):
 
     def choose_background(self,mode):
         if mode=='image':
-            path,_=QFileDialog.getOpenFileName(self,t('Choose background image'),str(Path.home()),'Images (*.png *.jpg *.jpeg *.webp *.bmp)')
+            path,_=QFileDialog.getOpenFileName(self,t('Choose background image'),str(Path.home()),'Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.apng)')
             if not path: return
             pix=backgrounds.load_image(path)
             if pix.isNull():
                 self.message.setText(t('Image could not be loaded. Choose a supported image under 32 MB and 64 megapixels.')); return
             self.save_background(mode,path,pix)
+        elif mode=='video':
+            path,_=QFileDialog.getOpenFileName(self,t('Choose local video'),str(Path.home()),'Videos (*.mp4 *.webm *.mkv *.mov *.m4v)')
+            if path:
+                if valid_wallpaper('video',path): self.save_background(mode,path)
+                else: self.message.setText(t('Wallpaper unavailable or unsupported.'))
         else: self.save_background(mode,self.replay_background['path'])
 
     def save_background(self,mode,path='',pix=None):
@@ -1040,7 +1057,7 @@ class Window(QMainWindow):
         try: write_ui({**read_json(UI_CONFIG),'replay_background':value})
         except OSError as exc: self.message.setText(str(exc)); return
         previous_mode=self.replay_background['mode']; self.replay_background=value
-        self.art.custom_pix=pix if pix is not None else (backgrounds.load_image(path) if mode=='image' else QPixmap())
+        self.art_wallpaper.load(value['mode'],value['path'],pix); self.art.custom_pix=self.art_wallpaper.still; self.sync_alive()
         self.update_latest(); self.sync_background_controls(); self.art.update()
         if (previous_mode=='last_clip')!=(mode=='last_clip'): self.refresh_library(force=True); self.next_thumbnail()
 
@@ -1048,11 +1065,12 @@ class Window(QMainWindow):
         if not hasattr(self,'background_choice'): return
         mode=self.replay_background['mode']; old=self.background_choice.blockSignals(True)
         self.background_choice.setCurrentIndex(self.background_choice.findData(mode)); self.background_choice.blockSignals(old)
-        self.background_path.setText(Path(self.replay_background['path']).name if mode=='image' else '')
-        self.background_path.setToolTip(self.replay_background['path'] if mode=='image' else '')
-        self.background_path.setVisible(mode=='image')
+        local=mode in ('image','video')
+        self.background_path.setText(Path(self.replay_background['path']).name if local else '')
+        self.background_path.setToolTip(self.replay_background['path'] if local else '')
+        self.background_path.setVisible(local)
         self.background_preview.setPixmap(self.background_preview_pix())
-        self.background_missing.setVisible(mode=='image' and self.art.custom_pix.isNull())
+        self.background_missing.setVisible(mode=='image' and self.art.custom_pix.isNull() or self.art_wallpaper.error)
         for preview in getattr(self,'settings_previews',[]): preview.update()
 
     def background_preview_pix(self):
@@ -1090,7 +1108,7 @@ class Window(QMainWindow):
         self.settings_search_hint=label('','muted'); self.settings_search_hint.hide(); v.addWidget(self.settings_search_hint)
         self.settings_selector=fit_combo(QComboBox()); self.settings_selector.setAccessibleName(t('Settings')); v.addWidget(self.settings_selector)
         settings_area=QHBoxLayout(); settings_area.setSpacing(12); self.settings_list=QListWidget(); self.settings_list.setObjectName('settingsNavigation'); self.settings_list.setAccessibleName(t('Control center')); self.settings_list.setMouseTracking(True); self.settings_list.setIconSize(QSize(20,20)); self.settings_list.setMaximumWidth(290); self.settings_list.setMinimumWidth(220); self.settings_list.setItemDelegate(SettingsCategoryDelegate(self,self.settings_list)); settings_area.addWidget(self.settings_list)
-        tabs=PageStack(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
+        tabs=PageStack(); tabs.setObjectName('shellPages'); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
         v=self.settings_tab(tabs,t('Appearance'))
         self.add_interface_preview(v)
         v.addWidget(decorate(button(t('Creative Studio'),self.open_creative_studio,'primary'),'settings'))
@@ -1117,7 +1135,8 @@ class Window(QMainWindow):
         self.background_path=label('','muted'); self.background_path.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); wl.addWidget(self.background_path)
         self.background_missing=label(t('Image unavailable. Showing the classic logo.'),'muted'); wl.addWidget(self.background_missing)
         wl.addWidget(button(t('Choose background image'),lambda:self.choose_background('image')))
-        wl.addWidget(label(t('Static backgrounds only. Right-click the Replay artwork to change it.'),'muted'))
+        wl.addWidget(button(t('Choose local video'),lambda:self.choose_background('video')))
+        wl.addWidget(label(t('Images, GIFs and local videos. Right-click the Replay artwork to change it.'),'muted'))
         v.addWidget(wallpaper); self.sync_background_controls(); self.background_choice.currentIndexChanged.connect(self.background_changed)
         custom=panel(); cl=QVBoxLayout(custom); cl.setContentsMargins(14,12,14,12); cl.addWidget(label(t('Custom palette'),'section')); cl.addWidget(label(t('Choose dark background, surfaces and accent. Changes apply immediately.'),'muted')); cr=self.settings_row(); self.custom_buttons={}
         for key,title in [('bg',t('Background')),('surface',t('Panels')),('accent',t('Accent')),('border',t('Borders'))]:
@@ -1144,13 +1163,14 @@ class Window(QMainWindow):
         row=self.settings_row(); row.addWidget(label(t('Diagnostics'),'section')); row.addStretch(); row.addWidget(button(t('Open recorder log'),lambda:self.open_file(LOG))); v.addLayout(row)
         self.diagnostics=label('','muted'); self.diagnostics.setWordWrap(True); v.addWidget(self.diagnostics); v.addWidget(button(t('Refresh diagnostics'),self.refresh_diagnostics)); v.addStretch()
         v=self.settings_tab(tabs,t('Updates')); self.update_panel=UpdatePanel(self); v.addWidget(self.update_panel); v.addStretch()
+        self.build_alive_settings(tabs)
         # Keep related capture controls first, then interface and keyboard preferences.
         pages=[(tabs.widget(i),self.settings_selector.itemText(i)) for i in range(tabs.count())]
         self.settings_list.clear(); self.settings_selector.clear()
         for page,_ in pages: tabs.removeWidget(page)
         descriptions=(
-            ('replay','Quality, buffer and rate'),('audio','Devices and audio tracks'),('folder','Folders and drives'),('image','Themes, colors and artwork'),('display','Layout and accessibility'),('play','Player controls and speed'),('settings','Startup and background tasks'),('keyboard','Save clips from any game'),('keyboard','In-app key bindings'),('system','Compositor and diagnostics'),('refresh','Installed version and releases'))
-        for position,index in enumerate((3,2,1,0,4,5,6,8,7,9,10)):
+            ('replay','Quality, buffer and rate'),('audio','Devices and audio tracks'),('folder','Folders and drives'),('image','Themes, colors and artwork'),('display','Layout and accessibility'),('play','Player controls and speed'),('settings','Startup and background tasks'),('keyboard','Save clips from any game'),('keyboard','In-app key bindings'),('system','Compositor and diagnostics'),('refresh','Installed version and releases'),('image','Motion and animated wallpapers'))
+        for position,index in enumerate((3,2,1,0,4,5,6,8,7,9,10,11)):
             page,name=pages[index]; tabs.addWidget(page)
             glyph,description=descriptions[position]; item=QListWidgetItem(name); item.setData(Qt.ItemDataRole.UserRole+1,glyph); item.setData(Qt.ItemDataRole.UserRole+2,t(description)); item.setToolTip(name+' · '+t(description)); self.settings_list.addItem(item); self.settings_selector.addItem(icon(glyph),name)
         self.settings_selector.currentIndexChanged.connect(self.select_settings); self.settings_list.currentRowChanged.connect(self.select_settings); self.select_settings(0)
@@ -1159,6 +1179,103 @@ class Window(QMainWindow):
         self.settings_search.returnPressed.connect(self.open_first_setting)
         self.settings_results.itemActivated.connect(self.open_setting_result)
         self.settings_results.itemClicked.connect(self.open_setting_result)
+
+    @staticmethod
+    def transparent_scroll(scroll):
+        scroll.setObjectName('shellScroll'); scroll.viewport().setObjectName('shellViewport')
+
+    def build_alive_settings(self,tabs):
+        v=self.settings_tab(tabs,t('Animations')); self.alive_controls={}; self.alive_sliders={}
+        def toggle(key,title):
+            control=SettingSwitch(); control.setAccessibleName(t(title)); control.setChecked(self.alive[key]); control.toggled.connect(lambda value,k=key:self.set_alive(k,value)); self.alive_controls[key]=control; v.addWidget(toggle_row(control,t(title)))
+        def choice(key,title,options):
+            row=self.settings_row(); name=label(t(title)); name.setWordWrap(True); row.addWidget(name,1); control=fit_combo(QComboBox()); control.setAccessibleName(t(title))
+            for value,text in options: control.addItem(t(text),value)
+            control.setCurrentIndex(control.findData(self.alive[key])); control.currentIndexChanged.connect(lambda _,k=key,c=control:self.set_alive(k,c.currentData())); self.alive_controls[key]=control; row.addWidget(control); v.addLayout(row)
+        def slider(key,title,lo,hi,suffix,step=1):
+            row=QHBoxLayout(); name=label(t(title)); name.setWordWrap(True); row.addWidget(name,1); readout=label(str(self.alive[key])+suffix,'key'); row.addWidget(readout); v.addLayout(row)
+            control=QSlider(Qt.Orientation.Horizontal); control.setRange(lo,hi); control.setSingleStep(step); control.setPageStep(step*5); control.setTracking(False); control.setAccessibleName(t(title)); control.setValue(self.alive[key])
+            control.valueChanged.connect(lambda value,k=key:self.set_alive(k,value)); self.alive_controls[key]=control; self.alive_sliders[key]=(readout,suffix); v.addWidget(control)
+        toggle('enabled','Enable animations')
+        toggle('pause_recording','Pause motion while recording')
+        v.addWidget(label(t('Interface motion'),'section'))
+        choice('hover','Hover effect',[('off','Off'),('glow','Glow'),('wash','Wash'),('underline','Underline')])
+        choice('press','Click effect',[('off','Off'),('ripple','Ripple'),('flash','Soft flash'),('outline','Outline')])
+        choice('navigation','Navigation effect',[('off','Off'),('slide','Slide'),('fade','Fade'),('sweep','Sweep')])
+        choice('save','Save feedback',[('off','Off'),('pulse','Pulse'),('outline','Outline')])
+        choice('ambient','Artwork animation',[('off','Off'),('orbit','Orbit'),('particles','Particles'),('scan','Scanline'),('drift','Drift')])
+        slider('duration','Animation duration',80,800,' ms',10); slider('intensity','Animation intensity',0,100,'%',5)
+        choice('easing','Animation curve',[('linear','Linear'),('out','Ease out'),('inout','Ease in-out')])
+        choice('fps','Animation frame rate',[(15,'15 FPS'),(24,'24 FPS'),(30,'30 FPS'),(60,'60 FPS')])
+        slider('ambient_speed','Artwork speed',25,200,'%',5)
+        demo=button(t('Test animation'),lambda:self.motion_engine.trigger(self.alive_demo,'save'),'primary'); self.alive_demo=demo; v.addWidget(demo)
+        v.addWidget(label(t('Application wallpaper'),'section'))
+        self.app_bg_status=label('','muted'); v.addWidget(self.app_bg_status)
+        row=self.settings_row(); row.addWidget(button(t('Choose background image'),lambda:self.choose_app_background('image'))); row.addWidget(button(t('Choose local video'),lambda:self.choose_app_background('video'))); row.addWidget(button(t('Remove wallpaper'),lambda:self.set_app_background('none',''))); v.addLayout(row)
+        toggle('wallpaper_motion','Animate wallpapers')
+        slider('wallpaper_speed','Wallpaper speed',25,200,'%',5)
+        choice('wallpaper_fps','Wallpaper frame rate',[(12,'12 FPS'),(24,'24 FPS'),(30,'30 FPS')])
+        slider('wallpaper_dim','Application wallpaper darkness',0,85,'%',5)
+        choice('wallpaper_fit','Application wallpaper scaling',[('fill','Fill'),('fit','Fit')])
+        v.addWidget(label(t('Local wallpapers are silent. Motion pauses when the window loses focus or is hidden.'),'muted'))
+        v.addWidget(button(t('Reset animations'),self.reset_alive,'quiet')); v.addStretch()
+        self.sync_alive_controls()
+
+    def reset_alive(self):
+        self.save_alive(alive.DEFAULTS)
+
+    def set_alive(self,key,value):
+        self.save_alive({**self.alive,key:value})
+
+    def save_alive(self,values):
+        value=alive.validated(values)
+        try: write_ui({**read_json(UI_CONFIG),'alive':value})
+        except OSError as exc: self.message.setText(str(exc)); self.sync_alive_controls(); return
+        self.alive=value; self.sync_alive_controls(); self.sync_alive(); self.root.update(); self.art.update()
+
+    def sync_alive_controls(self):
+        if not hasattr(self,'alive_controls'): return
+        for key,control in self.alive_controls.items():
+            old=control.blockSignals(True)
+            if isinstance(control,QCheckBox): control.setChecked(self.alive[key])
+            elif isinstance(control,QComboBox): control.setCurrentIndex(control.findData(self.alive[key]))
+            else: control.setValue(self.alive[key])
+            control.blockSignals(old)
+            if key in self.alive_sliders:
+                readout,suffix=self.alive_sliders[key]; readout.setText(str(self.alive[key])+suffix)
+            control.setEnabled(key=='enabled' or key in ('wallpaper_dim','wallpaper_fit') or self.alive['enabled'])
+        self.sync_app_background_status()
+
+    def sync_app_background_status(self):
+        if hasattr(self,'app_bg_status'):
+            self.app_bg_status.setText(t('Wallpaper unavailable or unsupported.') if self.app_wallpaper.error else Path(self.app_background['path']).name if self.app_background['path'] else t('No wallpaper'))
+            self.app_bg_status.setToolTip(self.app_background['path'])
+
+    def choose_app_background(self,mode):
+        filters='Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.apng)' if mode=='image' else 'Videos (*.mp4 *.webm *.mkv *.mov *.m4v)'
+        path,_=QFileDialog.getOpenFileName(self,t('Choose background image') if mode=='image' else t('Choose local video'),str(Path.home()),filters)
+        if not path: return
+        if not valid_wallpaper(mode,path): self.message.setText(t('Wallpaper unavailable or unsupported.')); return
+        self.set_app_background(mode,path)
+
+    def set_app_background(self,mode,path):
+        value=alive.wallpaper({'mode':mode,'path':path})
+        try: write_ui({**read_json(UI_CONFIG),'app_background':value})
+        except OSError as exc: self.message.setText(str(exc)); return
+        self.app_background=value; self.app_wallpaper.load(value['mode'],value['path']); self.sync_app_background_status(); self.apply_theme(); self.sync_alive(); self.root.update()
+
+    def wallpaper_failed(self):
+        self.sync_app_background_status()
+        if hasattr(self,'background_missing'): self.background_missing.setVisible(self.art_wallpaper.error)
+        if hasattr(self,'message'): self.message.setText(t('Wallpaper unavailable or unsupported.'))
+
+    def sync_alive(self):
+        if not hasattr(self,'art'): return
+        self.motion_engine.sync()
+        run=self.motion_engine.allowed() and self.alive['wallpaper_motion']
+        speed=self.alive['wallpaper_speed']; fps=self.alive['wallpaper_fps']
+        self.app_wallpaper.sync(run,speed,fps)
+        self.art_wallpaper.sync(run and self.art.isVisible(),speed,fps)
 
     def add_interface_preview(self,layout):
         card=panel(); card.setObjectName('settingsCard'); box=QVBoxLayout(card); box.setContentsMargins(12,10,12,10); box.setSpacing(5)
@@ -1456,7 +1573,7 @@ class Window(QMainWindow):
         except OSError as exc:
             self.message.setText(str(exc)); return False
         self.creative_design=data['creative_design']; self.dashboard_layout=data['dashboard_layout']; self.creative_profiles=data['creative_profiles']
-        self.apply_theme(); self.sync_creative_hub()
+        self.apply_theme(); self.sync_creative_hub(); self.sync_alive()
         return True
 
     def sync_creative_hub(self):
@@ -1567,7 +1684,7 @@ class Window(QMainWindow):
         self.centralWidget().layout().invalidate(); self.stack.updateGeometry()
 
     def navigate(self,i):
-        self.stack.setCurrentIndex(i); self.sync_creative_hub(); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
+        self.stack.setCurrentIndex(i); self.sync_creative_hub(); self.sync_alive(); self.motion_engine.trigger(self.page_titles[i],'navigation'); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
         if i!=0 and self.dashboard_editing: self.toggle_widget_edit(False)
         if i!=1 and self.player: self.player.pause()
         if i!=2: self.editor.pause()
@@ -1797,7 +1914,10 @@ class Window(QMainWindow):
         if d['font']!='default': stylesheet=stylesheet.replace('font-family:"Inter","Noto Sans",sans-serif;',f"font-family:{d['font']};")
         if d['weight']!='default': stylesheet+=f"\nQWidget,QPushButton,QComboBox,QLineEdit {{font-weight:{ {'normal':400,'medium':500,'bold':700}[d['weight']]} ;}}"
         if d['radius']>=0: stylesheet+=f'\nQFrame#commandHub,QFrame#bottomDock,QFrame#playerPane,QFrame#rail,QFrame#editorStage,QFrame#panel {{border-radius:{radius}px;}}'
+        if self.app_background['mode']!='none':
+            stylesheet+='\nQWidget#shellRoot,QWidget#shellBody,QWidget#shellPage,QWidget#shellViewport,QScrollArea#shellScroll,QStackedWidget#shellPages {background:transparent;} QLabel {background:transparent;}'
         app.setStyleSheet(stylesheet)
+        self.root.update()
         for key,card in self.widgets_by_id.items():
             style=d['widget_styles'].get(key,{}); declarations=[]
             if 'color' in style: declarations.append('background:'+style['color'])
@@ -1901,6 +2021,7 @@ class Window(QMainWindow):
 
     def application_state_changed(self,state):
         if self.closing: return
+        self.sync_alive()
         if self.prefs['pause_in_background'] and not self.foreground():
             if self.player: self.player.pause()
             self.editor.pause()
@@ -1909,6 +2030,9 @@ class Window(QMainWindow):
         else:
             self.timer.stop(); self.health_timer.start()
             if not self.isVisible(): self.editor.stop_strip()
+
+    def hideEvent(self,event):
+        super().hideEvent(event); self.sync_alive()
 
     def showEvent(self,event):
         super().showEvent(event)
@@ -1976,6 +2100,7 @@ class Window(QMainWindow):
         self.sync_duration_ui()
         if hasattr(self,'tray'): self.update_tray()
         if self.recorder_interrupted and self.active is False: self.hero_status.setText(t('Replay interrupted'))
+        self.sync_alive()
 
     def choose_duration(self,seconds):
         if seconds==self.duration:
@@ -2021,6 +2146,8 @@ class Window(QMainWindow):
         if code==0 and operation=='start': self.active=True; self.last_confirmed_active=True; self.recorder_interrupted=False
         if code==0 and operation=='stop': self.active=False; self.last_confirmed_active=False; self.recorder_interrupted=False
         self.sync_config(); self.paint_status(); self.check_status(); self.refresh_library()
+        if code==0 and operation=='save':
+            for control in (self.save_btn,self.hub_save,self.widget_actions['quick_save']): self.motion_engine.trigger(control,'save')
 
     def action_error(self,error):
         if error==QProcess.ProcessError.FailedToStart:
@@ -2213,7 +2340,7 @@ class Window(QMainWindow):
         if not self.exiting and not self.update_panel.installed and self.prefs['close_to_tray'] and QSystemTrayIcon.isSystemTrayAvailable():
             if self.player: self.player.pause()
             self.tray.show(); self.hide(); self.application_state_changed(QApplication.instance().applicationState()); event.ignore(); return
-        self.closing=True; self.timer.stop(); self.health_timer.stop(); self.tray.hide()
+        self.closing=True; self.motion_engine.stop(); self.app_wallpaper.stop(); self.art_wallpaper.stop(); self.timer.stop(); self.health_timer.stop(); self.tray.hide()
         if self.player: self.player.stop()
         for p in (self.poll,self.thumb,self.probe):
             if p.state()!=QProcess.ProcessState.NotRunning: p.kill(); p.waitForFinished(1000)
