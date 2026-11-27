@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0 — Playback
+
+- Add a compact speed menu beside the clip player volume and in fullscreen, with eight choices from 0.25× to 2×.
+- Apply playback rates directly to existing Qt media players; no reopening, seeking, library refresh or theme rebuild. Synchronize both controls and Playback settings, and remember the selection across restarts. Export speed and recorded files are unaffected.
+- Add regression checks for rate actions, preference persistence and fullscreen synchronization; Maintainer reports all tests passing and successful playback validation on Arch Linux.
+
 ## 2.0.0 — Overdrive
 
 - Remove the permanent sidebar. Center a floating bottom dock with four pages, active-page accent and compact icon-only navigation.

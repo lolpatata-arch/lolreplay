@@ -11,7 +11,7 @@ import lolreplay_library as library
 import sqlite3
 from lolreplay_export import probe, probe_details, export_args, temp_for, next_export_path, filmstrip_args, SPEEDS
 from lolreplay_icons import decorate
-from lolreplay_widgets import SeekSlider, PageScroll, fit_combo
+from lolreplay_widgets import SeekSlider, PageScroll, fit_combo, PlaybackSpeedButton
 try:
     from PySide6.QtMultimedia import QMediaPlayer,QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -61,7 +61,7 @@ class FullscreenPlayer(QDialog):
         bar=QFrame(); bar.setObjectName('fullscreenControls'); controls=QVBoxLayout(bar); controls.setContentsMargins(12,6,12,6); controls.setSpacing(5); row=QHBoxLayout()
         self.ink=parent.button_ink() if hasattr(parent,'button_ink') else '#ffffff'; self.play=decorate(btn(t('Play'),toggle,'primary'),'play',self.ink); row.addWidget(self.play)
         self.seek=SeekSlider(); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.setRange(0,max(0,player.duration())); self.seek.setValue(player.position()); self.seek.seekRequested.connect(player.setPosition); controls.addWidget(self.seek)
-        self.time=lab('', 'muted'); row.addWidget(self.time); row.addStretch(); row.addWidget(decorate(btn(t('Exit full screen')+' · Esc',self.reject),'full')); controls.addLayout(row); layout.addWidget(bar)
+        self.time=lab('', 'muted'); row.addWidget(self.time); row.addStretch(); self.speed_btn=PlaybackSpeedButton(player,parent.set_playback_speed); row.addWidget(self.speed_btn); row.addWidget(decorate(btn(t('Exit full screen')+' · Esc',self.reject),'full')); controls.addLayout(row); layout.addWidget(bar)
         self.shortcuts=[]
         keymap=parent.keymap; bindings={'Esc':self.reject};
         for name,action in [('exit_fullscreen',self.reject),('fullscreen',self.reject),('play',toggle)]:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 2.0.0: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 2.1.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from lolreplay_editor import Editor, show_fullscreen, ClickVideoWidget
-from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo
+from lolreplay_widgets import PageScroll, PageStack, SeekSlider, ResponsiveClipList, toggle_row, fit_combo, PlaybackSpeedButton
 import lolreplay_storage as storage
 import lolreplay_library as library
 import lolreplay_games as games
@@ -272,7 +272,7 @@ class Window(QMainWindow):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); dock.addWidget(b,1)
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.dock_row=QHBoxLayout(); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
-        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.0.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
+        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.1.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -456,7 +456,7 @@ class Window(QMainWindow):
         controls=QWidget(); cv=QVBoxLayout(controls); cv.setContentsMargins(0,0,4,0); cv.setSpacing(8)
         if MULTIMEDIA:
             self.seek=SeekSlider(); self.seek.setRange(0,0); self.seek.setAccessibleName(t('Playback position')); self.seek.setToolTip(t('Seek through the clip')); self.seek.seekRequested.connect(self.player.setPosition); self.player.positionChanged.connect(self.update_position); self.player.durationChanged.connect(self.update_duration); self.player.errorOccurred.connect(self.player_error); self.player.playbackStateChanged.connect(self.update_play_state); cv.addWidget(self.seek)
-            r=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.player_controls=r; playback=QHBoxLayout(); audio_row=QHBoxLayout(); self.play_btn=decorate(button(t('Play'),self.play,'primary'),'play','#ffffff'); playback.addWidget(self.play_btn); self.time_label=label('0:00 / 0:00','muted'); playback.addWidget(self.time_label); playback.addStretch(); self.mute_btn=button(t('Mute'),self.toggle_mute,'quiet'); self.mute_btn.setToolTip(t('Mute or unmute playback')); audio_row.addWidget(self.mute_btn); vol=QSlider(Qt.Orientation.Horizontal); vol.setRange(0,100); vol.setValue(self.playback_volume); vol.setMinimumWidth(55); vol.setMaximumWidth(120); vol.setToolTip(t('Playback volume: {0}%',self.playback_volume)); vol.setAccessibleName(t('Playback volume')); self.volume_slider=vol; vol.valueChanged.connect(self.change_volume); audio_row.addWidget(vol,1); self.full_btn=decorate(button('',self.fullscreen_clip),'full'); self.full_btn.setAccessibleName(t('Full screen')); self.full_btn.setEnabled(False); self.full_btn.setToolTip(t('Full screen')+' · Esc'); audio_row.addWidget(self.full_btn); r.addLayout(playback); r.addLayout(audio_row); cv.addLayout(r)
+            r=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.player_controls=r; playback=QHBoxLayout(); audio_row=QHBoxLayout(); self.play_btn=decorate(button(t('Play'),self.play,'primary'),'play','#ffffff'); playback.addWidget(self.play_btn); self.time_label=label('0:00 / 0:00','muted'); playback.addWidget(self.time_label); playback.addStretch(); self.mute_btn=button(t('Mute'),self.toggle_mute,'quiet'); self.mute_btn.setToolTip(t('Mute or unmute playback')); audio_row.addWidget(self.mute_btn); vol=QSlider(Qt.Orientation.Horizontal); vol.setRange(0,100); vol.setValue(self.playback_volume); vol.setMinimumWidth(55); vol.setMaximumWidth(120); vol.setToolTip(t('Playback volume: {0}%',self.playback_volume)); vol.setAccessibleName(t('Playback volume')); self.volume_slider=vol; vol.valueChanged.connect(self.change_volume); audio_row.addWidget(vol,1); self.speed_btn=PlaybackSpeedButton(self.player,self.set_playback_speed); self.speed_btn.setEnabled(False); audio_row.addWidget(self.speed_btn); self.full_btn=decorate(button('',self.fullscreen_clip),'full'); self.full_btn.setAccessibleName(t('Full screen')); self.full_btn.setEnabled(False); self.full_btn.setToolTip(t('Full screen')+' · Esc'); audio_row.addWidget(self.full_btn); r.addLayout(playback); r.addLayout(audio_row); cv.addLayout(r)
         else:
             msg=label(t('Integrated playback unavailable. Open clips with your system player.'),'muted'); msg.setWordWrap(True); pv.addWidget(msg,1); self.play_btn=button(t('Play externally'),self.play,'primary'); cv.addWidget(self.play_btn)
         actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_actions=actions; self.external_btn=decorate(button(t('Open externally'),self.play_external),'external'); actions.addWidget(self.external_btn); self.edit_btn=decorate(button(t('Edit clip'),self.edit_selected),'edit'); self.edit_btn.setEnabled(False); actions.addWidget(self.edit_btn); cv.addLayout(actions); manage=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.library_manage=manage; self.rename_btn=decorate(button(t('Rename'),self.rename_selected,'quiet'),'rename'); self.trash_btn=decorate(button(t('Move to trash'),self.trash_selected,'quiet'),'trash'); self.rename_btn.setEnabled(False); self.trash_btn.setEnabled(False); manage.addWidget(self.rename_btn); manage.addWidget(self.trash_btn); cv.addLayout(manage); self.smart_actions=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.favorite_btn=button(t('Add favorite'),self.toggle_favorite,'quiet'); self.metadata_btn=button(t('Edit tags'),self.edit_metadata,'quiet'); self.favorite_btn.setEnabled(False); self.metadata_btn.setEnabled(False); self.smart_actions.addWidget(self.favorite_btn); self.smart_actions.addWidget(self.metadata_btn); cv.addLayout(self.smart_actions); self.metadata_label=label('','muted'); self.metadata_label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); cv.addWidget(self.metadata_label); cv.addStretch(); self.library_controls_scroll=PageScroll(controls); pv.addWidget(self.library_controls_scroll,2); self.play_btn.setEnabled(False); self.external_btn.setEnabled(False); split.addWidget(preview); split.setStretchFactor(0,5); split.setStretchFactor(1,6); split.setSizes([460,540]); v.addWidget(split,1)
@@ -661,7 +661,7 @@ class Window(QMainWindow):
         self.preview_title.setText(Path(path).stem if path else t('Select a clip')); self.preview_title.setToolTip(path or t('Select a clip')); self.play_btn.setEnabled(bool(path)); self.external_btn.setEnabled(bool(path))
         for b in (self.edit_btn,self.rename_btn,self.trash_btn): b.setEnabled(bool(path))
         favorite,game,labels=self.metadata_for(path); self.favorite_btn.setEnabled(bool(path)); self.metadata_btn.setEnabled(bool(path)); self.favorite_btn.setText(t('Remove favorite') if favorite else t('Add favorite')); self.metadata_label.setText(' · '.join(([game or t('Game not detected')] if path else [])+['#'+tag for tag in labels]))
-        if self.player: self.full_btn.setEnabled(bool(path))
+        if self.player: self.full_btn.setEnabled(bool(path)); self.speed_btn.setEnabled(bool(path))
         if path!=self.preview_path and self.player:
             self.player.stop(); self.player.setSource(QUrl.fromLocalFile(path) if path else QUrl())
         self.preview_path=path
@@ -918,7 +918,7 @@ class Window(QMainWindow):
         toggle('hero_overlay','Wallpaper caption overlay')
         v.addStretch(); v=self.settings_tab(tabs,t('Playback'))
         toggle('single_click_play','Play clips with a single click'); toggle('video_click','Click video to play or pause'); toggle('loop_playback','Loop library playback')
-        choice('playback_speed','Playback speed',[(50,'0.5×'),(75,'0.75×'),(100,'1×'),(125,'1.25×'),(150,'1.5×'),(200,'2×')])
+        choice('playback_speed','Playback speed',[(25,'0.25×'),(50,'0.5×'),(75,'0.75×'),(100,'1×'),(125,'1.25×'),(150,'1.5×'),(175,'1.75×'),(200,'2×')])
         choice('seek_seconds','Keyboard seek step',[(2,'2 s'),(5,'5 s'),(10,'10 s'),(15,'15 s')])
         toggle('pause_in_background','Pause playback when leaving the app')
         v.addStretch(); v=self.settings_tab(tabs,t('Behaviour'))
@@ -928,11 +928,21 @@ class Window(QMainWindow):
         note=label(self.hotkey_text('These settings do not change recording, export quality or F8.'),'muted'); note.setWordWrap(True); v.addWidget(note)
         v.addWidget(button(t('Reset accessibility preferences'),self.reset_preferences,'quiet')); v.addStretch()
 
+    def set_playback_speed(self,percent):
+        self.set_preference('playback_speed',percent)
+
     def set_preference(self,key,value):
         previous=self.prefs.copy(); self.prefs=prefs.validated({**self.prefs,key:value})
         try: write_ui(prefs.merge_ui(read_json(UI_CONFIG),self.prefs))
         except OSError as exc:
             self.prefs=previous; self.sync_pref_controls(); self.message.setText(str(exc)); return
+        if key=='playback_speed':
+            # No theme rebuild, source replacement, seek, or library refresh on a speed change.
+            self.sync_pref_controls()
+            rate=self.prefs['playback_speed']/100
+            for player in (self.player,self.editor.player):
+                if player is not None: player.setPlaybackRate(rate)
+            return
         self.apply_preferences()
 
     def sync_pref_controls(self):
@@ -1350,6 +1360,9 @@ class Window(QMainWindow):
         QPushButton#hubToggle {{background:{panelbg};border:1px solid {border};border-radius:8px;padding:5px 9px;}}
         QPushButton#hubSave {{background:{accent};border:1px solid {accent};border-radius:8px;color:{contrast};font-weight:700;padding:5px 9px;}}
         QPushButton#hubSave:disabled,QPushButton#hubToggle:disabled {{background:{ink};border-color:{border};color:#777783;}}
+        QPushButton#playbackSpeed {{background:{panelbg};border:1px solid {border};border-radius:5px;padding:3px 6px;font-size:11px;font-weight:600;}}
+        QPushButton#playbackSpeed:hover:!disabled {{border-color:{bright};color:{bright};}}
+        QPushButton#playbackSpeed::menu-indicator {{image:none;width:0px;}}
         QPushButton#hubSave:hover:!disabled {{background:{QColor(accent).lighter(120).name()};}}
         QFrame#dashboardHero {{background:{ink};border:1px solid {border};}}
         QFrame#dashboardConsole {{background:{hub_surface};border:1px solid {accent};}}
@@ -1454,7 +1467,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.0.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.1.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -1758,7 +1771,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 2.0.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 2.1.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -1807,4 +1820,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.0.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.1.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
