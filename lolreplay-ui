@@ -450,10 +450,94 @@ class Window(QMainWindow):
         self.widget_storage_folder=label('','muted'); self.widget_storage_folder.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); sc.addWidget(self.widget_storage_folder)
         sc.addWidget(button(t('Open clips folder'),self.open_folder,'quiet')); sc.addStretch()
         self.dashboard_cards=(self.dashboard_hero,self.dashboard_session,self.overview_rail,self.dashboard_gallery)
-        self.widgets_by_id=dict(zip(dashboard.IDS,(self.dashboard_hero,self.overview_rail,self.dashboard_session,self.dashboard_gallery,self.dashboard_favorite_card,self.dashboard_storage_card)))
-        self.widget_names=dict(zip(dashboard.IDS,map(t,('Replay background','Capture controls','CAPTURE SESSION','Recent clips','Favorites','Storage'))))
+        self.widgets_by_id=dict(zip(dashboard.IDS[:6],(self.dashboard_hero,self.overview_rail,self.dashboard_session,self.dashboard_gallery,self.dashboard_favorite_card,self.dashboard_storage_card)))
+        self.widget_names={key:t(title) for key,title in dashboard.NAMES.items()}
+        self.widget_values={}; self.widget_details={}; self.widget_actions={}; self.widget_activity=[]; self.widget_activity_date=None; self.widget_summary={}
+        def extra(key,glyph,action=None,action_title=None,detail=True):
+            frame,box=card('dashboardExtra'); self.widgets_by_id[key]=frame
+            head=QHBoxLayout(); mark=QLabel(); mark.setPixmap(icon(glyph).pixmap(QSize(20,20))); head.addWidget(mark)
+            title=label(self.widget_names[key],'section'); title.setWordWrap(True); title.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); head.addWidget(title,1); box.addLayout(head)
+            value=label('—','dashboardMetric'); value.setWordWrap(True); value.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); box.addWidget(value); self.widget_values[key]=value
+            if detail:
+                desc=label('','muted'); desc.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); box.addWidget(desc); self.widget_details[key]=desc
+            if action:
+                control=button(t(action_title),action,'quiet'); control.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed); box.addWidget(control); self.widget_actions[key]=control
+            box.addStretch(); return box
+        extra('latest','clips',self.open_latest,'Watch')
+        self.widget_actions['latest'].setEnabled(False)
+        extra('today','clips',detail=False)
+        week=extra('week','display',detail=False); bars=QHBoxLayout(); bars.setSpacing(4)
+        for _ in range(7):
+            col=QVBoxLayout(); col.setSpacing(3); count=label('0','muted'); count.setAlignment(Qt.AlignmentFlag.AlignCenter); col.addWidget(count)
+            bar=QProgressBar(); bar.setOrientation(Qt.Orientation.Vertical); bar.setRange(0,1); bar.setValue(0); bar.setTextVisible(False); bar.setFixedSize(12,64); col.addWidget(bar,0,Qt.AlignmentFlag.AlignHCenter)
+            day=label('—','muted'); day.setAlignment(Qt.AlignmentFlag.AlignCenter); col.addWidget(day)
+            bars.addLayout(col,1); self.widget_activity.append((count,bar,day))
+        week.insertLayout(week.count()-1,bars)
+        extra('size','folder',self.open_folder,'Open clips folder')
+        extra('games','clips',lambda:self.open_widget_library(),'Browse')
+        extra('top_game','clips',self.open_top_game_widget,'Browse')
+        extra('longest','play',self.open_longest_widget,'Watch')
+        extra('quality','settings',lambda:self.open_widget_settings(0),'Settings')
+        extra('audio','audio',lambda:self.open_widget_settings(1),'Settings')
+        extra('mic','audio',self.toggle_mic,'Enable microphone')
+        extra('buffer','replay',lambda:self.open_widget_settings(0),'Settings')
+        extra('duration','replay',self.duration_widget_menu,'Change duration')
+        extra('quick_save','save',lambda:self.run('save'),'Save clip')
+        extra('hotkey','keyboard',lambda:self.open_widget_settings(7),'Settings')
         for key,widget in self.widgets_by_id.items(): self.build_widget_header(key,widget.layout())
         v.addLayout(self.overview_layout); v.addStretch(); self.reflow_dashboard(False,False)
+
+    def open_widget_library(self):
+        self.navigate(1); self.reset_library_filters()
+
+    def open_widget_settings(self,index):
+        self.navigate(3); self.select_settings(index)
+
+    def open_top_game_widget(self):
+        game=self.widget_summary.get('top_game',''); self.open_widget_library()
+        if game: self.game_filter.setCurrentIndex(max(0,self.game_filter.findData(game)))
+
+    def open_longest_widget(self):
+        key=self.widget_summary.get('longest')
+        if not key: return
+        self.open_widget_library()
+        for i in range(self.list.count()):
+            if self.list.item(i).data(Qt.ItemDataRole.UserRole)==key[0]:
+                self.list.setCurrentRow(i); self.play(); return
+
+    def duration_widget_menu(self):
+        if self.pending is not None: return
+        menu=QMenu(self.widget_actions['duration'])
+        for seconds,_ in DURATIONS:
+            action=menu.addAction(self.format_duration_label(seconds)); action.setCheckable(True); action.setChecked(seconds==self.duration); action.setEnabled(seconds<=self.buffer_seconds)
+            action.triggered.connect(lambda checked=False,s=seconds:self.choose_duration(s))
+        control=self.widget_actions['duration']; menu.exec(control.mapToGlobal(control.rect().bottomLeft()))
+
+    def update_widget_library(self,force=False):
+        today=datetime.now().date()
+        if not force and self.widget_activity_date==today: return
+        self.widget_activity_date=today; files=self.snapshot or []
+        summary=dashboard.library_summary(files,self.metadata_for,self.durations,today); self.widget_summary=summary
+        self.widget_values['today'].setText(str(summary['counts'][-1]))
+        self.widget_values['week'].setText(clip_count(sum(summary['counts'])))
+        maximum=max(1,*summary['counts'])
+        for (count,bar,day),date,n in zip(self.widget_activity,summary['days'],summary['counts']):
+            count.setText(str(n)); bar.setRange(0,maximum); bar.setValue(n); day.setText(str(date.day)); day.setToolTip(date.isoformat())
+        self.widget_values['size'].setText(self.dashboard_size.text()); self.widget_details['size'].setText(self.dashboard_total.text()+' · '+t('Clips'))
+        self.widget_values['games'].setText(str(summary['games'])); self.widget_details['games'].setText(t('Game not detected') if not summary['games'] else '')
+        self.widget_values['top_game'].setText(summary['top_game'] or t('Game not detected')); self.widget_details['top_game'].setText(clip_count(summary['top_count'])); self.widget_actions['top_game'].setEnabled(bool(summary['top_game']))
+        longest=summary['longest']; self.widget_values['longest'].setText(library.duration_text(summary['longest_duration']) if longest else '—')
+        self.widget_details['longest'].setText(Path(longest[0]).stem if longest else t('Indexing durations…') if self.probe_queue or self.probe_current else t('No recordings yet')); self.widget_actions['longest'].setEnabled(bool(longest))
+        key=files[0] if files else None; self.widget_values['latest'].setText(Path(key[0]).stem if key else t('No recordings yet'))
+        self.widget_details['latest'].setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(key[1]//1000000),'dd MMM · HH:mm') if key else '')
+        self.widget_actions['latest'].setEnabled(bool(key))
+
+    def sync_widget_capture(self):
+        for key,value,detail in (('quality',self.perf_status.text(),self.capture_specs.text()),('audio',self.routing_status.text(),self.output_status.text()),('mic',self.capture_audio.text(),self.mic_status.text()),('buffer',self.dashboard_history.text(),self.buffer_status.text()),('duration',self.format_duration_label(self.duration),self.window_caption.text()),('quick_save',self.format_duration_label(self.duration),self.state.text()),('hotkey',self.global_key or '—',self.window_hint.text())):
+            self.widget_values[key].setText(value); self.widget_details[key].setText(detail)
+        self.widget_actions['mic'].setText(self.mic_btn.text()); self.widget_actions['mic'].setEnabled(self.mic_btn.isEnabled())
+        self.widget_actions['quick_save'].setText(self.save_btn.text()); self.widget_actions['quick_save'].setEnabled(self.save_btn.isEnabled())
+        self.widget_actions['duration'].setEnabled(self.lengths.isEnabled())
 
     def open_favorite_widget(self):
         self.navigate(1); self.reset_library_filters(); self.favorite_filter.setChecked(True)
@@ -484,9 +568,12 @@ class Window(QMainWindow):
 
     def widget_add_menu(self):
         menu=QMenu(self.widget_add_btn)
-        for key in dashboard.IDS:
-            if not self.dashboard_layout['widgets'][key]['visible']:
-                action=menu.addAction(self.widget_names[key]); action.triggered.connect(lambda checked=False,k=key:self.change_dashboard_widget(k,visible=True))
+        for group,keys_in_group in dashboard.GROUPS.items():
+            available=[key for key in keys_in_group if not self.dashboard_layout['widgets'][key]['visible']]
+            if not available: continue
+            section=menu.addMenu(t(group)+' · '+str(len(available)))
+            for key in available:
+                action=section.addAction(self.widget_names[key]); action.triggered.connect(lambda checked=False,k=key:self.change_dashboard_widget(k,visible=True))
         if menu.isEmpty(): menu.addAction(t('All widgets visible')).setEnabled(False)
         menu.exec(self.widget_add_btn.mapToGlobal(self.widget_add_btn.rect().bottomLeft()))
 
@@ -525,7 +612,7 @@ class Window(QMainWindow):
             height_mode=item['height']; layout=card.layout()
             base=9 if key=='hero' else 16; margin=max(5,base+{'compact':-5,'normal':0,'large':4}[height_mode]); vertical=max(5,margin-2)
             layout.setContentsMargins(margin,vertical,margin,vertical); layout.setSpacing({'compact':5,'normal':9,'large':13}[height_mode])
-            card.setMinimumHeight(0 if height_mode!='large' else (300 if key in ('favorites','storage') else 420))
+            card.setMinimumHeight(0 if height_mode!='large' else (300 if key not in dashboard.IDS[:4] else 420))
             if visible: grid.addWidget(card,*positions[key])
         for col in range(1 if stacked else 3): grid.setColumnStretch(col,1)
         self.widget_empty.setVisible(not positions)
@@ -1687,6 +1774,7 @@ class Window(QMainWindow):
         self.replay_window.update(); self.art.update()
         for (secs,_),b in zip(DURATIONS,self.duration_buttons):
             b.setChecked(secs==self.duration)
+        self.sync_widget_capture()
 
     def sync_config(self):
         try: cfg=storage.read_config(); self.config_valid=True
@@ -1714,6 +1802,7 @@ class Window(QMainWindow):
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
         self.widget_disk.setText(self.disk.text()); self.widget_storage_bar.setValue(self.storage_bar.value()); self.widget_storage_folder.setText(str(self.out)); self.widget_storage_folder.setToolTip(str(self.out))
+        self.sync_widget_capture()
 
     def foreground(self):
         return self.isVisible() and QApplication.instance().applicationState()==Qt.ApplicationState.ApplicationActive and not self.isMinimized()
@@ -1874,6 +1963,7 @@ class Window(QMainWindow):
             files.sort(key=lambda x:x[1],reverse=True)
         except OSError: files=[]
         if files==self.snapshot and not force:
+            self.update_widget_library()
             try: stamp=self.library_db.path.stat().st_mtime_ns
             except OSError: stamp=None
             if stamp==self.metadata_stamp: return
@@ -1895,7 +1985,7 @@ class Window(QMainWindow):
         self.refresh_game_filter()
         self.dashboard_total.setText(str(len(files))); self.dashboard_favorites.setText(str(sum(bool(self.metadata_for(key[0])[0]) for key in files))); self.dashboard_size.setText(f'{total/1024**3:.2f} GiB' if total>=1024**3 else f'{total/1024**2:.1f} MiB')
         self.widget_favorite_count.setText(self.dashboard_favorites.text())
-        self.snapshot=files; self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and files and k==files[0]))}
+        self.snapshot=files; self.update_widget_library(force=True); self.list.blockSignals(True); self.list.clear(); self.recent.clear(); self.thumb_queue=[]; keys=set(files); self.thumbs={k:v for k,v in self.thumbs.items() if k in keys and (self.prefs['thumbnails'] or (self.replay_background['mode']=='last_clip' and files and k==files[0]))}
         ordered=sorted(files,key=lambda x:x[1]) if self.library_sort=='oldest' else sorted(files,key=lambda x:x[2],reverse=True) if self.library_sort=='largest' else sorted(files,key=lambda x:Path(x[0]).name.casefold()) if self.library_sort=='name' else files
         recent_files=files[1:7] if self.replay_background['mode']=='last_clip' else files[:6]
         recent_paths={f[0]:i for i,f in enumerate(recent_files)}; recent_items={}
@@ -1968,6 +2058,7 @@ class Window(QMainWindow):
                         if it.data(Qt.ItemDataRole.UserRole)==key[0]:
                             it.setText(it.text()+' · '+library.duration_text(seconds)); break
             if self.length_filter.currentData(): self.filter_library(self.search.text())
+            self.update_widget_library(force=True)
         QTimer.singleShot(250,self.next_thumbnail)
 
     def duration_error(self,error):
