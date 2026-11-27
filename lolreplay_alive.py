@@ -2,12 +2,12 @@
 DEFAULTS={'enabled':True,'hover':'glow','press':'ripple','navigation':'slide','save':'pulse','ambient':'off',
           'duration':220,'intensity':35,'easing':'out','fps':30,'ambient_speed':100,
           'wallpaper_motion':True,'wallpaper_speed':100,'wallpaper_fps':24,'wallpaper_dim':55,
-          'wallpaper_fit':'fill','pause_recording':False}
+          'wallpaper_fit':'fill','panel_opacity':100,'pause_recording':False}
 CHOICES={'hover':('off','glow','wash','underline'),'press':('off','ripple','flash','outline'),
          'navigation':('off','slide','fade','sweep'),'save':('off','pulse','outline'),
          'ambient':('off','orbit','particles','scan','drift'),'easing':('linear','out','inout'),
          'fps':(15,24,30,60),'wallpaper_fps':(12,24,30),'wallpaper_fit':('fill','fit')}
-RANGES={'duration':(80,800),'intensity':(0,100),'ambient_speed':(25,200),'wallpaper_speed':(25,200),'wallpaper_dim':(0,85)}
+RANGES={'duration':(80,800),'intensity':(0,100),'ambient_speed':(25,200),'wallpaper_speed':(25,200),'wallpaper_dim':(0,85),'panel_opacity':(55,100)}
 BOOLS=('enabled','wallpaper_motion','pause_recording')
 VIDEO_EXTENSIONS=('.mp4','.webm','.mkv','.mov','.m4v')
 IMAGE_EXTENSIONS=('.png','.jpg','.jpeg','.bmp','.gif','.webp','.apng')

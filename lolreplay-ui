@@ -1218,6 +1218,7 @@ class Window(QMainWindow):
         slider('wallpaper_speed','Wallpaper speed',25,200,'%',5)
         choice('wallpaper_fps','Wallpaper frame rate',[(12,'12 FPS'),(24,'24 FPS'),(30,'30 FPS')])
         slider('wallpaper_dim','Application wallpaper darkness',0,85,'%',5)
+        slider('panel_opacity','Wallpaper panel opacity',55,100,'%',5)
         choice('wallpaper_fit','Application wallpaper scaling',[('fill','Fill'),('fit','Fit')])
         v.addWidget(label(t('Local wallpapers are silent. Motion pauses when the window loses focus or is hidden.'),'muted'))
         v.addWidget(button(t('Reset animations'),self.reset_alive,'quiet')); v.addStretch()
@@ -1233,7 +1234,10 @@ class Window(QMainWindow):
         value=alive.validated(values)
         try: write_ui({**read_json(UI_CONFIG),'alive':value})
         except OSError as exc: self.message.setText(str(exc)); self.sync_alive_controls(); return
-        self.alive=value; self.sync_alive_controls(); self.sync_alive(); self.root.update(); self.art.update()
+        restyle=value['panel_opacity']!=self.alive['panel_opacity'] and self.app_background['mode']!='none'
+        self.alive=value; self.sync_alive_controls(); self.sync_alive()
+        if restyle: self.apply_theme()
+        self.root.update(); self.art.update()
 
     def sync_alive_controls(self):
         if not hasattr(self,'alive_controls'): return
@@ -1245,7 +1249,7 @@ class Window(QMainWindow):
             control.blockSignals(old)
             if key in self.alive_sliders:
                 readout,suffix=self.alive_sliders[key]; readout.setText(str(self.alive[key])+suffix)
-            control.setEnabled(key=='enabled' or key in ('wallpaper_dim','wallpaper_fit') or self.alive['enabled'])
+            control.setEnabled(key=='enabled' or key in ('wallpaper_dim','wallpaper_fit','panel_opacity') or self.alive['enabled'])
         self.sync_app_background_status()
 
     def sync_app_background_status(self):
@@ -1918,6 +1922,9 @@ class Window(QMainWindow):
         if d['radius']>=0: stylesheet+=f'\nQFrame#commandHub,QFrame#bottomDock,QFrame#playerPane,QFrame#rail,QFrame#editorStage,QFrame#panel {{border-radius:{radius}px;}}'
         if self.app_background['mode']!='none':
             stylesheet+='\nQWidget#shellRoot,QWidget#shellBody,QWidget#shellPage,QWidget#shellViewport,QScrollArea#shellScroll,QStackedWidget#shellPages {background:transparent;} QLabel {background:transparent;}'
+            if self.alive['panel_opacity']<100:
+                c=QColor(panelbg); alpha=round(255*self.alive['panel_opacity']/100)
+                stylesheet+=f'\nQFrame#dashboardHero,QFrame#dashboardSession,QFrame#dashboardConsole,QFrame#dashboardGallery,QFrame#dashboardExtra,QFrame#commandHub,QFrame#bottomDock,QFrame#panel,QWidget#settingsCard {{background:rgba({c.red()},{c.green()},{c.blue()},{alpha});}}'
         app.setStyleSheet(stylesheet)
         self.root.update()
         for key,card in self.widgets_by_id.items():
