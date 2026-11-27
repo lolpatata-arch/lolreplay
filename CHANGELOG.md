@@ -1,11 +1,11 @@
 # Changelog
 
-## 2.3.0 — Modular (development)
+## 2.3.0 — Modular
 
 - Convert the four existing Replay cards into independent layout widgets. Expand to twenty widgets: favorites, storage, latest clip, today's clips, seven-day activity, library size, recorded games, top game, longest indexed clip, capture quality, audio, microphone, buffer, clip length, quick save and global shortcut. Use existing data and controls without additional background polling. Group the catalog into Capture, Media library and System.
 - Edit widgets directly on the Replay page: drag handles onto another handle or use accessible arrow buttons, set one/two/three-column widths and compact/normal/large height presets, hide and restore cards, reset the factory layout. Narrow displays use one column; content retains its minimum usable size.
 - Persist validated layout data locally, independent of recording configuration. Preserve the global command hub and hotkey regardless of visible widgets. Include the new layout module in the installer and release manifest.
-- Add pure layout tests and responsive integration coverage. Runtime Qt validation is pending. Free-position editing of the entire interface remains outside this release.
+- Add pure layout tests and responsive integration coverage. Maintainer reports all 81 regression tests passing, including Qt offscreen integration, and requests publication. Real-world upgrade validation remains pending. Free-position editing of the entire interface remains outside this release.
 
 ## 2.2.0 — Control Center
 
