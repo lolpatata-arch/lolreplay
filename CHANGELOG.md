@@ -1,12 +1,12 @@
 # Changelog
 
-## 2.4.0 — Creative Freedom (development)
+## 2.4.0 — Creative Freedom
 
 - Add Creative Studio on Replay and in Appearance/Display. Preview draft changes, undo/redo, cancel or apply, restore the default layout and save/load/delete up to sixteen local profiles, including widget positions and styles.
 - Place the dock at any edge, move the command hub above or below, choose its optional branding/status/hotkey, and hide it on Replay when capture controls remain available. Other pages retain the hub. Narrow windows use compact controls; side docks are icon-only.
 - Customize palette overrides, font family and weight, dock size, corner radius, margin, widget spacing, surface color blending, individual widget background/radius and responsive media split direction. No native desktop blur, free pixel positioning or GIFs.
 - Reflow existing widgets without recreating native media players. Preserve unrelated preferences and capture configuration. Include the two new modules in installation/release manifests.
-- Add pure model and Qt regression tests. Runtime validation pending.
+- Add pure model and Qt regression tests. Maintainer reports all regression tests passing and approves the visual result for release. Installed upgrade validation remains pending.
 
 ## 2.3.0 — Modular
 
