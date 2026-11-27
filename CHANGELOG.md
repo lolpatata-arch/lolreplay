@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0 — Control Center (development)
+
+- Redesign the eleven existing settings categories with icon tiles, descriptions, a searchable local index and direct navigation to matching controls. Search ignores accents and case.
+- Add live schematic previews of Overdrive in Appearance and Display, reflecting the selected theme, corner radius, density, artwork and dock mode. Update preset miniatures to show the top hub and bottom dock.
+- Group preferences into individual cards with accessible switches and stepped sliders for text size, wallpaper darkness and library refresh interval. Preserve existing choices and saved values.
+- Avoid unnecessary library refreshes when adjusting UI preferences. No additional dependencies or background polling.
+- Extend responsive tests for search, category navigation, previews and settings synchronization. Desktop validation pending. Community sharing and modular layouts are not included.
+
 ## 2.1.0 — Playback
 
 - Add a compact speed menu beside the clip player volume and in fullscreen, with eight choices from 0.25× to 2×.
