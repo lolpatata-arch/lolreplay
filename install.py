@@ -21,7 +21,7 @@ CONF=Path(os.environ.get('XDG_CONFIG_HOME', str(HOME/'.config')))
 LOG=HOME/'.local/state/crimson-clips/f8.log'
 BEGIN='-- BEGIN CRIMSON CLIPS F8'
 END='-- END CRIMSON CLIPS F8'
-PROGRAM_FILES=('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_backgrounds.py','lolreplay_visual.py','lolreplay_dashboard.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_library.py','lolreplay_games.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips','lolreplay_updater.py','lolreplay_update_ui.py')
+PROGRAM_FILES=('lolreplay','lolreplay-ui','lolreplay_editor.py','lolreplay_widgets.py','lolreplay_icons.py','lolreplay_i18n.py','lolreplay_preferences.py','lolreplay_backgrounds.py','lolreplay_visual.py','lolreplay_dashboard.py','lolreplay_creative.py','lolreplay_studio.py','lolreplay_shortcuts.py','lolreplay_export.py','lolreplay_storage.py','lolreplay_library.py','lolreplay_games.py','lolreplay_drives.py','lolreplay_audio.py','lolreplay_compositor.py','lolreplay_performance.py','crimson-clips','lolreplay_updater.py','lolreplay_update_ui.py')
 
 def stamp(): return datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 def write(path, content, mode=None, backup=True):

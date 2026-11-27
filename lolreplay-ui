@@ -8,6 +8,8 @@ import lolreplay_preferences as prefs
 import lolreplay_backgrounds as backgrounds
 import lolreplay_visual as visual
 import lolreplay_dashboard as dashboard
+import lolreplay_creative as creative
+from lolreplay_studio import CreativeStudio, StudioPreview
 import lolreplay_shortcuts as keys
 import os
 from lolreplay_i18n import t, clip_count, LANGUAGES, set_language, language
@@ -90,7 +92,7 @@ class InterfacePreview(QWidget):
         self.setFixedHeight(155)
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg,surface,border,accent,bright=THEMES[self.window.theme]; design=visual.profile(self.window.prefs)
+        bg,surface,border,accent,bright=self.window.palette_for(); design=visual.profile(self.window.prefs)
         w=self.width(); h=self.height(); scale=min(w/360,h/155); p.translate((w-360*scale)/2,(h-155*scale)/2); p.scale(scale,scale)
         radius=max(2,design.radius*.48); gap={'tight':4,'balanced':8,'airy':12}.get(self.window.prefs['visual_density'],8)
         def tile(x,y,ww,hh,color,edge=border,r=radius):
@@ -131,7 +133,7 @@ class SettingsCategoryDelegate(QStyledItemDelegate):
         return QSize(150,round(55*self.window.prefs['text_scale']/100))
     def paint(self,p,option,index):
         p.save(); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg,surface,border,accent,bright=THEMES[self.window.theme]
+        bg,surface,border,accent,bright=self.window.palette_for()
         r=option.rect.adjusted(3,2,-3,-2)
         selected=bool(option.state & QStyle.StateFlag.State_Selected); hovered=bool(option.state & QStyle.StateFlag.State_MouseOver)
         if selected or hovered:
@@ -156,7 +158,7 @@ class ClipDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         painter.save(); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         r=option.rect.adjusted(5,5,-5,-5)
-        bg,panel,border,accent,bright=THEMES[self.window.theme]
+        bg,panel,border,accent,bright=self.window.palette_for()
         selected=bool(option.state & QStyle.StateFlag.State_Selected)
         hovered=bool(option.state & QStyle.StateFlag.State_MouseOver)
         outline=QColor(accent if selected else border)
@@ -219,7 +221,7 @@ class Artwork(QWidget):
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing); p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         r=self.rect(); design=visual.profile(self.window.prefs); clip=QPainterPath(); clip.addRoundedRect(QRectF(r),design.radius,design.radius); p.setClipPath(clip)
-        bg,panel,border,accent,bright=THEMES[self.window.theme]
+        bg,panel,border,accent,bright=self.window.palette_for()
         selected=self.selected_art()
         if selected is not None and not selected.isNull():
             p.fillRect(r,QColor(bg))
@@ -276,7 +278,7 @@ class ReplayWindow(QWidget):
         self.setAccessibleName('Selected clip length relative to history')
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg,surface,border,accent,bright=THEMES[self.window.theme]
+        bg,surface,border,accent,bright=self.window.palette_for()
         ratio=min(1,max(0,self.window.duration/max(1,self.window.buffer_seconds)))
         n=32; step=self.width()/n; selected=max(1,math.ceil(n*ratio))
         p.setPen(Qt.PenStyle.NoPen)
@@ -299,7 +301,7 @@ class Window(QMainWindow):
         self.setWindowIcon(QIcon(str(icon)))
         self.active=None; self.pending=None; self.recorder_interrupted=False; self.last_confirmed_active=False; self.exiting=False; self.closing=False; self.mount_target=None; self.snapshot=None; self.thumbs={}; self.thumb_queue=[]; self.thumb_current=None; self.duration=30; self.buffer_seconds=1200
         preferences=read_json(UI_CONFIG); self.theme=preferences.get('theme','Obsidian'); self.replay_background=backgrounds.validated(preferences.get('replay_background'))
-        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences')); self.dashboard_layout=dashboard.validated(preferences.get('dashboard_layout')); self.dashboard_editing=False
+        self.keymap,self.global_key=keys.load(preferences); self.custom=preferences.get('custom',{}); self.prefs=prefs.validated(preferences.get('preferences')); self.dashboard_layout=dashboard.validated(preferences.get('dashboard_layout')); self.dashboard_editing=False; self.creative_design=creative.validated(preferences.get('creative_design')); self.creative_profiles=creative.profiles(preferences.get('creative_profiles')); self._shell_positions=None
         raw_volume=preferences.get('playback_volume',45)
         self.playback_volume=max(0,min(100,raw_volume)) if type(raw_volume) is int else 45
         self.library_sort=preferences.get('library_sort','newest')
@@ -315,7 +317,7 @@ class Window(QMainWindow):
         self.probe=QProcess(self); self.probe.finished.connect(self.duration_done); self.probe.errorOccurred.connect(self.duration_error)
         self.probe_watch=QTimer(self); self.probe_watch.setSingleShot(True); self.probe_watch.timeout.connect(self.probe.kill)
         self.thumb_watch=QTimer(self); self.thumb_watch.setSingleShot(True); self.thumb_watch.timeout.connect(self.thumb.kill)
-        root=QWidget(); root.setObjectName('shellRoot'); self.setCentralWidget(root); outer=QVBoxLayout(root); self.outer_layout=outer; outer.setContentsMargins(14,10,14,8); outer.setSpacing(8)
+        root=QWidget(); root.setObjectName('shellRoot'); self.setCentralWidget(root); outer=QGridLayout(root); self.outer_layout=outer; outer.setContentsMargins(14,10,14,8); outer.setSpacing(8)
         # Permanent command hub: brand, recorder controls and status are independent of the active page.
         self.hub=QFrame(); self.hub.setObjectName('commandHub'); top=QHBoxLayout(self.hub); self.top_layout=top; top.setContentsMargins(14,8,14,8); top.setSpacing(10)
         self.brand_mark=QLabel(); self.brand_mark.setObjectName('hubMark'); self.brand_mark.setPixmap(self.logo.pixmap(QSize(34,34))); self.brand_mark.setFixedSize(34,34); top.addWidget(self.brand_mark)
@@ -328,18 +330,18 @@ class Window(QMainWindow):
         self.lengths=decorate(button(t('30 sec'),self.duration_menu,'durationMenu'),'down'); self.lengths.setMinimumWidth(0); self.lengths.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Fixed); self.lengths.setToolTip(t('Change instant replay duration without restarting')); self.lengths.setAccessibleName(t('Clip length')); top.addWidget(self.lengths)
         self.hub_toggle=decorate(button(t('Start'),self.toggle_hub_capture,'hubToggle'),'play'); self.hub_toggle.setAccessibleName(t('Start')); self.hub_toggle.setEnabled(False); top.addWidget(self.hub_toggle)
         self.hub_save=decorate(button(t('Save clip'),lambda:self.run('save'),'hubSave'),'save','#ffffff'); self.hub_save.setAccessibleName(t('Save clip')); self.hub_save.setEnabled(False); top.addWidget(self.hub_save)
-        outer.addWidget(self.hub)
+        outer.addWidget(self.hub,0,0)
         body=QWidget(); self.body=body; col=QVBoxLayout(body); self.body_layout=col; col.setContentsMargins(12,0,12,0); col.setSpacing(6)
         self.stack=PageStack(); self.nav=[]; self.nav_names=[]; self.page_kickers=[]
         self.breadcrumb=label(t('Capture'),'eyebrow'); self.breadcrumb.hide()
-        col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setObjectName('footerMessage'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); self.message.setMaximumHeight(42); col.addWidget(self.message); outer.addWidget(body,1)
+        col.addWidget(self.stack,1); self.message=label(t('Ready.'),'muted'); self.message.setObjectName('footerMessage'); self.message.setWordWrap(True); self.message.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); self.message.setMaximumHeight(42); col.addWidget(self.message); outer.addWidget(body,1,0); outer.setRowStretch(1,1); outer.setColumnStretch(0,1)
         # Floating dock centered at the bottom; never overlays video or scrollable content.
         self.dock=QFrame(); self.dock.setObjectName('bottomDock'); dock=QHBoxLayout(self.dock); self.dock_layout=dock; dock.setContentsMargins(7,5,7,5); dock.setSpacing(5)
         for i,(name,glyph) in enumerate([(t('Replay'),'replay'),(t('Clips'),'clips'),(t('Editor'),'edit'),(t('Settings'),'settings')]):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); dock.addWidget(b,1)
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
-        self.dock_row=QHBoxLayout(); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
-        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.3.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
+        self.dock_row=QBoxLayout(QBoxLayout.Direction.LeftToRight); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
+        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.3.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row,2,0)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -375,6 +377,7 @@ class Window(QMainWindow):
         self.widget_toolbar=QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.widget_edit_btn=decorate(button(t('Edit widgets'),self.toggle_widget_edit,'quiet'),'edit'); self.widget_edit_btn.setCheckable(True)
         self.widget_toolbar.addWidget(self.widget_edit_btn); self.widget_toolbar.addStretch()
+        self.widget_studio_btn=decorate(button(t('Creative Studio'),self.open_creative_studio,'quiet'),'settings'); self.widget_toolbar.addWidget(self.widget_studio_btn)
         self.widget_add_btn=button(t('Add widget'),self.widget_add_menu,'quiet'); self.widget_reset_btn=button(t('Reset layout'),self.reset_dashboard,'quiet'); self.widget_toolbar.addWidget(self.widget_add_btn); self.widget_toolbar.addWidget(self.widget_reset_btn)
         self.widget_add_btn.hide(); self.widget_reset_btn.hide(); v.addLayout(self.widget_toolbar)
         self.widget_hint=label(t('Drag handles or use the arrows. Changes are saved automatically.'),'muted'); self.widget_hint.hide(); v.addWidget(self.widget_hint)
@@ -590,7 +593,7 @@ class Window(QMainWindow):
         try: write_ui({**read_json(UI_CONFIG),'dashboard_layout':value})
         except OSError as exc:
             self.message.setText(str(exc)); self.reflow_dashboard(*self.dashboard_mode); return
-        self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode)
+        self.dashboard_layout=value; self.reflow_dashboard(*self.dashboard_mode); self.sync_creative_hub()
 
     def change_dashboard_widget(self,key,**values):
         self.save_dashboard_layout(dashboard.change(self.dashboard_layout,key,**values))
@@ -633,7 +636,7 @@ class Window(QMainWindow):
         self.latest_details.setDirection(QBoxLayout.Direction.TopToBottom if hero_narrow else QBoxLayout.Direction.LeftToRight)
         self.dashboard_stats.setDirection(QBoxLayout.Direction.TopToBottom if gallery_narrow else QBoxLayout.Direction.LeftToRight)
         self.gallery_heading.setDirection(QBoxLayout.Direction.TopToBottom if gallery_narrow and not stacked else QBoxLayout.Direction.LeftToRight)
-        grid.setSpacing(9 if compact else 14)
+        gap=self.creative_design['gap']; grid.setSpacing((9 if compact else 14) if gap<0 else min(gap,12) if compact else gap)
         hero_height=self.dashboard_layout['widgets']['hero']['height']; gallery_height=self.dashboard_layout['widgets']['gallery']['height']
         self.art.setMinimumHeight({'compact':110,'normal':170 if compact else 340,'large':280 if compact else 460}[hero_height])
         self.recent.setMinimumHeight({'compact':110,'normal':155 if compact else 185,'large':290}[gallery_height])
@@ -1085,6 +1088,7 @@ class Window(QMainWindow):
         tabs=PageStack(); self.settings_stack=tabs; settings_area.addWidget(tabs,1); v.addLayout(settings_area,1)
         v=self.settings_tab(tabs,t('Appearance'))
         self.add_interface_preview(v)
+        v.addWidget(decorate(button(t('Creative Studio'),self.open_creative_studio,'primary'),'settings'))
         langrow=self.settings_row(); langrow.addWidget(label(t('Interface language'),'section')); self.language_selector=QComboBox(); fit_combo(self.language_selector)
         for code,name in LANGUAGES.items(): self.language_selector.addItem(name,code)
         self.language_selector.setCurrentIndex(self.language_selector.findData(language())); self.language_selector.currentIndexChanged.connect(self.change_language); langrow.addWidget(self.language_selector); v.addLayout(langrow)
@@ -1205,6 +1209,7 @@ class Window(QMainWindow):
     def build_preferences(self,tabs):
         v=self.settings_tab(tabs,t('Display'))
         self.add_interface_preview(v)
+        v.addWidget(decorate(button(t('Creative Studio'),self.open_creative_studio,'primary'),'settings'))
         self.pref_controls={}; self.pref_sliders={}
         def choice(key,title,options):
             card=panel(); card.setObjectName('settingsCard'); outer=QVBoxLayout(card); outer.setContentsMargins(10,7,10,7); row=self.settings_row(); name=label(t(title)); name.setWordWrap(True); row.addWidget(name,1)
@@ -1428,39 +1433,99 @@ class Window(QMainWindow):
         if getattr(self,'_responsive_ready',False): self.update_layout()
 
 
+    def open_creative_studio(self):
+        dialog=CreativeStudio(self); dialog.exec()
+
+    def palette_for(self,design=None):
+        d=self.creative_design if design is None else design
+        bg,surface,border,accent,bright=THEMES[self.theme]; palette=d['palette']
+        bg=palette.get('bg',bg); surface=palette.get('surface',surface); border=palette.get('border',border)
+        if 'accent' in palette:
+            accent=palette['accent']; bright=QColor(accent).lighter(145).name()
+        if d['opacity']!=100: surface=creative.mix(surface,bg,d['opacity'])
+        return bg,surface,border,accent,bright
+
+    def apply_creative(self,design,layout,saved):
+        data=creative.merge_ui(read_json(UI_CONFIG),design,layout,saved)
+        try: write_ui(data)
+        except OSError as exc:
+            self.message.setText(str(exc)); return False
+        self.creative_design=data['creative_design']; self.dashboard_layout=data['dashboard_layout']; self.creative_profiles=data['creative_profiles']
+        self.apply_theme(); self.sync_creative_hub()
+        return True
+
+    def sync_creative_hub(self):
+        if not hasattr(self,'widgets_by_id'): return
+        self.hub.setVisible(creative.effective_hub(self.creative_design,self.dashboard_layout,self.stack.currentIndex()))
+
+    def arrange_shell(self,side,floating):
+        d=self.creative_design; position=(d['hub'],d['dock'])
+        outer=self.outer_layout
+        if self._shell_positions!=position:
+            outer.removeWidget(self.hub); outer.removeWidget(self.body); outer.removeItem(self.dock_row); self.dock_row.setParent(None)
+            for i in range(5): outer.setRowStretch(i,0)
+            for i in range(2): outer.setColumnStretch(i,0)
+            row=0
+            if d['hub']=='top': outer.addWidget(self.hub,row,0,1,2 if side else 1); row+=1
+            if side:
+                dock_col=0 if d['dock']=='left' else 1; body_col=1-dock_col
+                outer.addLayout(self.dock_row,row,dock_col); outer.addWidget(self.body,row,body_col)
+                outer.setColumnStretch(body_col,1); outer.setRowStretch(row,1); row+=1
+            else:
+                if d['dock']=='top': outer.addLayout(self.dock_row,row,0); row+=1
+                outer.addWidget(self.body,row,0); outer.setRowStretch(row,1); outer.setColumnStretch(0,1); row+=1
+                if d['dock']=='bottom': outer.addLayout(self.dock_row,row,0); row+=1
+            if d['hub']=='bottom': outer.addWidget(self.hub,row,0,1,2 if side else 1)
+            self._shell_positions=position
+        direction=QBoxLayout.Direction.TopToBottom if side else QBoxLayout.Direction.LeftToRight
+        self.dock_row.setDirection(direction); self.dock_layout.setDirection(direction)
+        for i in (1,3): self.dock_row.setStretch(i,1 if floating else 0)
+        self.dock_row.setStretch(2,2 if floating else 1)
+        # A fixed cross-axis and expanding main-axis preserve a real content area.
+        self.dock.setSizePolicy(QSizePolicy.Policy.Fixed if side else QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Preferred if side else QSizePolicy.Policy.Fixed)
+        self.sync_creative_hub()
+
     def update_layout(self,force=False):
         # Qt reports logical pixels; never use physical screen resolution for reflow.
         scale=self.prefs['text_scale']/100
-        compact,narrow,settings_compact,row_compact=prefs.layout_mode(self.width(),self.height(),self.prefs['text_scale'])
-        tiny=self.width()/scale<700
-        # Use the usable workspace, not the physical monitor resolution.
-        icon_nav=compact or self.prefs['icon_navigation']
-        design=visual.profile(self.prefs); floating=design.floating and not compact
+        d=self.creative_design; side=d['dock'] in ('left','right'); dock_scale=d['dock_size']/100
+        usable_width=max(1,self.width()-(round(76*scale*dock_scale) if side else 0))
+        compact,narrow,settings_compact,row_compact=prefs.layout_mode(usable_width,self.height(),self.prefs['text_scale'])
+        tiny=usable_width/scale<700
+        icon_nav=side or compact or d['dock_labels']=='icons' or (d['dock_labels']=='auto' and self.prefs['icon_navigation'])
+        design=visual.profile(self.prefs); floating=(design.floating if d['dock_mode']=='auto' else d['dock_mode']=='floating') and not compact
         gap,hpad,vpad=visual.spacing(self.prefs,compact)
-        outer_pad=6 if compact else 16
+        if d['gap']>=0: gap=min(d['gap'],12) if compact else d['gap']
+        outer_pad=(6 if compact else 16) if d['margin']<0 else min(d['margin'],8) if compact else d['margin']
         body_pad=4 if compact else max(10,hpad//2)
-        content_width=max(1,self.width()-2*(outer_pad+body_pad))
+        content_width=max(1,usable_width-2*(outer_pad+body_pad))
         content_height=max(1,self.height()-(126 if compact else 172))
         hub_compact=self.width()/scale<920 or self.height()/scale<530
         hub_tiny=self.width()/scale<680
         stacked=prefs.media_stacked(content_width,content_height,self.prefs['text_scale'])
+        if d['media_layout']=='vertical': stacked=True
+        elif d['media_layout']=='horizontal' and content_width/scale>=640: stacked=False
         mode=(compact,narrow,settings_compact,row_compact,scale,tiny,stacked,icon_nav,floating,gap,hpad,vpad,content_width/scale<850,hub_compact,hub_tiny)
         if mode==self._layout_mode and not force: return
         previous=self._layout_mode; self._layout_mode=mode
+        self.arrange_shell(side,floating)
         for b,name in zip(self.nav,self.nav_names):
-            b.setText('' if icon_nav else name); b.setIconSize(QSize(round((21 if icon_nav else 22)*scale),round((21 if icon_nav else 22)*scale)))
-        for w in (self.brand_meta,self.footer_label,self.footer_meta,self.top_duration): w.setVisible(not hub_compact)
-        self.brand_name.setVisible(not hub_tiny); self.state.setVisible(not hub_tiny)
+            size=round((21 if icon_nav else 22)*scale*dock_scale)
+            b.setText('' if icon_nav else name); b.setIconSize(QSize(size,size))
+        self.footer_label.setVisible(not hub_compact and not side and floating); self.footer_meta.setVisible(not hub_compact and not side and floating)
+        self.brand_mark.setVisible(d['hub_brand']); self.brand_meta.setVisible(d['hub_brand'] and not hub_compact); self.brand_name.setVisible(d['hub_brand'] and not hub_tiny)
+        self.top_duration.setVisible(d['hub_hotkey'] and not hub_compact); self.hub_status.setVisible(d['hub_status']); self.state.setVisible(not hub_tiny)
         self.state_dot.setToolTip(self.state.text()); self.hub_status.setToolTip(self.state.text())
         self.hub_toggle.setText('' if hub_compact else (t('Stop') if self.active is True else t('Start')))
         self.hub_save.setText('' if hub_compact else t('Save {0}',self.format_duration_label(self.duration)))
         for number in self.page_kickers: number.setVisible(not compact)
         self.outer_layout.setContentsMargins(outer_pad,6 if compact else 12,outer_pad,5 if compact else 10)
-        self.outer_layout.setSpacing(5 if compact else 10)
+        self.outer_layout.setSpacing((5 if compact else 10) if d['gap']<0 else gap)
         self.top_layout.setContentsMargins(6,3,6,3) if hub_compact else self.top_layout.setContentsMargins(14,7,14,7)
         self.top_layout.setSpacing(5 if hub_compact else 10)
         self.dock_layout.setContentsMargins(4,3,4,3) if compact else self.dock_layout.setContentsMargins(8,5,8,5)
-        self.dock.setMaximumWidth(round((300 if icon_nav else 760)*scale))
+        self.dock.setMaximumWidth(round(76*scale*dock_scale) if side else round((300 if icon_nav else 760)*scale*dock_scale) if floating else 16777215)
+        self.dock.setMaximumHeight(round(320*scale*dock_scale) if side and floating else 16777215)
         self.body_layout.setContentsMargins(body_pad,0,body_pad,0)
         self.body_layout.setSpacing(4 if compact else min(10,gap))
         self.state.setWordWrap(False)
@@ -1492,7 +1557,7 @@ class Window(QMainWindow):
         self.centralWidget().layout().invalidate(); self.stack.updateGeometry()
 
     def navigate(self,i):
-        self.stack.setCurrentIndex(i); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
+        self.stack.setCurrentIndex(i); self.sync_creative_hub(); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
         if i!=0 and self.dashboard_editing: self.toggle_widget_edit(False)
         if i!=1 and self.player: self.player.pause()
         if i!=2: self.editor.pause()
@@ -1501,10 +1566,10 @@ class Window(QMainWindow):
         if i==2: self.editor.select_latest()
 
     def button_ink(self):
-        return '#111111' if QColor(THEMES[self.theme][3]).lightness()>150 else '#ffffff'
+        return '#111111' if QColor(self.palette_for()[3]).lightness()>150 else '#ffffff'
 
     def apply_theme(self):
-        bg,panelbg,border,accent,bright=THEMES[self.theme]
+        bg,panelbg,border,accent,bright=self.palette_for(); d=self.creative_design
         # Own the palette even for native-looking controls and transient dialogs.
         app=QApplication.instance()
         pal=QPalette()
@@ -1645,9 +1710,9 @@ class Window(QMainWindow):
         if self.prefs['visual_style']!='classic':
             stylesheet+=visual.chrome(self.prefs,bg,panelbg,border,accent,bright,contrast,QColor(panelbg).lighter(124).name(),QColor(bg).darker(118).name())
         else:
-            radius=visual.profile(self.prefs).radius
+            radius=visual.profile(self.prefs).radius if d['radius']<0 else d['radius']
             stylesheet+=f'\nQPushButton,QComboBox,QLineEdit,QAbstractSpinBox {{border-radius:{max(3,min(12,radius))}px;}}'
-        radius=visual.profile(self.prefs).radius
+        radius=visual.profile(self.prefs).radius if d['radius']<0 else d['radius']
         raised=QColor(panelbg).lighter(135).name(); deep=QColor(bg).darker(112).name()
         surface=f'qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {raised},stop:1 {panelbg})' if visual.profile(self.prefs).sheen else panelbg
         stylesheet+=f'''
@@ -1719,12 +1784,21 @@ class Window(QMainWindow):
         stylesheet+=f'\nQCheckBox {{spacing:10px;padding:5px;}} QCheckBox::indicator {{width:18px;height:18px;border:1px solid {bright};border-radius:3px;background:{panelbg};}} QCheckBox::indicator:checked {{background:{accent};border:3px solid {bright};}}'
         if self.prefs['strong_focus']:
             stylesheet+=f'\nQPushButton:focus,QCheckBox:focus,QComboBox:focus,QLineEdit:focus,QAbstractSpinBox:focus {{border:2px solid {bright};}} QListWidget#tiles:focus {{border:1px solid {bright};}}'
+        if d['font']!='default': stylesheet=stylesheet.replace('font-family:"Inter","Noto Sans",sans-serif;',f"font-family:{d['font']};")
+        if d['weight']!='default': stylesheet+=f"\nQWidget {{font-weight:{ {'normal':400,'medium':500,'bold':700}[d['weight']]} ;}}"
+        if d['radius']>=0: stylesheet+=f'\nQFrame#commandHub,QFrame#bottomDock,QFrame#playerPane,QFrame#rail,QFrame#editorStage,QFrame#panel {{border-radius:{radius}px;}}'
         app.setStyleSheet(stylesheet)
+        for key,card in self.widgets_by_id.items():
+            style=d['widget_styles'].get(key,{}); declarations=[]
+            if 'color' in style: declarations.append('background:'+style['color'])
+            if 'radius' in style: declarations.append(f"border-radius:{style['radius']}px")
+            card.setStyleSheet('QFrame#'+card.objectName()+' {'+';'.join(declarations)+';}' if declarations else '')
         if self._responsive_ready: self.update_layout(force=True)
         for b in self.findChildren(QPushButton):
             glyph=b.property('lrIcon')
             if glyph: decorate(b,glyph,contrast if b.objectName() in ('primary','dashboardSave','hubSave') else '#c5c5cc',bright if b.objectName()=='nav' else None)
-        for b in self.nav: b.setIconSize(QSize(round(22*scale),round(22*scale)))
+        if not self._responsive_ready:
+            for b in self.nav: b.setIconSize(QSize(round(22*scale),round(22*scale)))
         if hasattr(self,'settings_list'): self.settings_list.viewport().update()
         for preview in getattr(self,'settings_previews',[]): preview.update()
         self.editor.timeline.accent=accent; self.editor.timeline.update(); self.art.update(); self.recent.viewport().update(); self.list.viewport().update(); self.paint_status()
