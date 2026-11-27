@@ -34,18 +34,19 @@ def change(raw,key,**updates):
     return validated(value)
 
 
-def move(raw,key,target):
+def move(raw,key,target,stacked=False):
     value=validated(raw); order=value['order']
+    if stacked and order==list(IDS): order[:]=['capture','hero','session','gallery','favorites','storage']
     if key not in IDS or target not in IDS or key==target: return value
     position=order.index(target); order.remove(key); order.insert(position,key)
     return value
 
 
-def step(raw,key,direction):
-    value=validated(raw); visible=[k for k in value['order'] if value['widgets'][k]['visible']]
+def step(raw,key,direction,stacked=False):
+    value=validated(raw); visible=list(positions(value,stacked))
     if key not in visible or direction not in (-1,1): return value
     target=visible.index(key)+direction
-    return move(value,key,visible[target]) if 0<=target<len(visible) else value
+    return move(value,key,visible[target],stacked) if 0<=target<len(visible) else value
 
 
 def positions(raw,stacked=False):

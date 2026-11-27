@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lolreplay 2.2.0: Qt frontend for the existing Crimson Clips CLI."""
+"""lolreplay 2.3.0: Qt frontend for the existing Crimson Clips CLI."""
 import json
 import math
 import time
@@ -339,7 +339,7 @@ class Window(QMainWindow):
             b=decorate(button(name,lambda checked=False,i=i:self.navigate(i),'nav'),glyph); b.setCheckable(True); b.setAccessibleName(name); b.setToolTip(name); self.nav_names.append(name); self.nav.append(b); dock.addWidget(b,1)
         self.dock.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
         self.dock_row=QHBoxLayout(); self.dock_row.setContentsMargins(0,0,0,0); self.dock_row.setSpacing(6)
-        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.2.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
+        self.footer_label=label(t('LOCAL ONLY'),'hubMeta'); self.footer_meta=label('v2.3.0','hubMeta'); self.dock_row.addWidget(self.footer_label); self.dock_row.addStretch(1); self.dock_row.addWidget(self.dock,2); self.dock_row.addStretch(1); self.dock_row.addWidget(self.footer_meta); outer.addLayout(self.dock_row)
         self.build_overview(); self.build_library(); self.build_editor(); self.build_settings(); self.install_shortcuts(); self.apply_preferences(refresh=False); self.stack.setCurrentIndex(self.prefs['startup_page']); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][self.prefs['startup_page']]);
         for i,b in enumerate(self.nav): b.setChecked(i==self.prefs['startup_page'])
         self.sync_config(); self.refresh_library(); self.check_status()
@@ -466,9 +466,9 @@ class Window(QMainWindow):
         for glyph,description,action in (('↑','Move widget up',lambda:self.step_dashboard_widget(key,-1)),('↓','Move widget down',lambda:self.step_dashboard_widget(key,1)),('×','Hide widget',lambda:self.change_dashboard_widget(key,visible=False))):
             b=button(glyph,action,'widgetSmall'); b.setAccessibleName(t(description)); b.setToolTip(t(description)); row.addWidget(b)
         outer.addLayout(row); sizes=QHBoxLayout(); sizes.setSpacing(5)
-        width=QComboBox(); width.setAccessibleName(t('Widget width')); width.setToolTip(t('Widget width'))
+        width=fit_combo(QComboBox()); width.setAccessibleName(t('Widget width')); width.setToolTip(t('Widget width'))
         for value in (1,2,3): width.addItem(str(value)+'/3',value)
-        height=QComboBox(); height.setAccessibleName(t('Widget height')); height.setToolTip(t('Widget height'))
+        height=fit_combo(QComboBox()); height.setAccessibleName(t('Widget height')); height.setToolTip(t('Widget height'))
         for value,name in (('compact','Compact'),('normal','Normal'),('large','Large')): height.addItem(t(name),value)
         sizes.addWidget(width,1); sizes.addWidget(height,2); outer.addLayout(sizes)
         self.widget_headers[key]=frame; self.widget_controls[key]=(width,height)
@@ -486,7 +486,7 @@ class Window(QMainWindow):
         menu=QMenu(self.widget_add_btn)
         for key in dashboard.IDS:
             if not self.dashboard_layout['widgets'][key]['visible']:
-                menu.addAction(self.widget_names[key],lambda k=key:self.change_dashboard_widget(k,visible=True))
+                action=menu.addAction(self.widget_names[key]); action.triggered.connect(lambda checked=False,k=key:self.change_dashboard_widget(k,visible=True))
         if menu.isEmpty(): menu.addAction(t('All widgets visible')).setEnabled(False)
         menu.exec(self.widget_add_btn.mapToGlobal(self.widget_add_btn.rect().bottomLeft()))
 
@@ -501,19 +501,10 @@ class Window(QMainWindow):
         self.save_dashboard_layout(dashboard.change(self.dashboard_layout,key,**values))
 
     def move_dashboard_widget(self,key,target):
-        if self.dashboard_editing: self.save_dashboard_layout(dashboard.move(self.dashboard_layout,key,target))
+        if self.dashboard_editing: self.save_dashboard_layout(dashboard.move(self.dashboard_layout,key,target,self.dashboard_mode[0]))
 
     def step_dashboard_widget(self,key,direction):
-        if self.dashboard_editing:
-            # Move in the visual order on narrow screens as well.
-            visible=list(dashboard.positions(self.dashboard_layout,self.dashboard_mode[0]))
-            if key in visible:
-                index=visible.index(key)+direction
-                if 0<=index<len(visible):
-                    current=dashboard.validated(self.dashboard_layout)
-                    if self.dashboard_mode[0] and current['order']==list(dashboard.IDS):
-                        current['order']=['capture','hero','session','gallery','favorites','storage']
-                    self.save_dashboard_layout(dashboard.move(current,key,visible[index]))
+        if self.dashboard_editing: self.save_dashboard_layout(dashboard.step(self.dashboard_layout,key,direction,self.dashboard_mode[0]))
 
     def reset_dashboard(self):
         self.save_dashboard_layout(dashboard.defaults())
@@ -1403,6 +1394,7 @@ class Window(QMainWindow):
 
     def navigate(self,i):
         self.stack.setCurrentIndex(i); self.stack.updateGeometry(); self.breadcrumb.setText([t('Capture'),t('Media library'),t('Editing'),t('Preferences')][i])
+        if i!=0 and self.dashboard_editing: self.toggle_widget_edit(False)
         if i!=1 and self.player: self.player.pause()
         if i!=2: self.editor.pause()
         for j,b in enumerate(self.nav): b.setChecked(i==j)
@@ -1713,7 +1705,7 @@ class Window(QMainWindow):
         self.output_status.setText(t('Capture output: ')+(t('System default') if cfg.get('audio_output','auto')=='auto' else str(cfg['audio_output'])))
         self.capture_specs.setText(f"H.264  ·  {cfg.get('fps',60)} FPS  ·  GPU"); self.capture_audio.setText(t('System audio · ')+(t('mic on') if cfg.get('microphone',False) else t('mic off')))
         mode=compositor.detect(); self.capture_mode.setText(t("Capture backend: ")+compositor.capture(cfg));
-        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.2.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
+        self.dest.setText(str(self.out)); self.brand_meta.setText('local • '+str(mode)); self.footer_meta.setText('v2.3.0 • '+str(mode)); enabled=cfg.get('microphone',False); self.mic_status.setText(t('Microphone: ')+(t('enabled · isolated audio · ')+str(cfg.get('microphone_source','auto')) if enabled else 'disabled')); self.mic_btn.setText(t('Disable microphone') if enabled else t('Enable microphone'))
         try:
             storage.config_check(self.out); usage=shutil.disk_usage(self.out); self.disk.setText(t('{0} GiB free',f'{usage.free/1024**3:.1f}')); self.storage_bar.setValue(round(1000*usage.used/usage.total) if usage.total else 0)
         except OSError: self.disk.setText(t('Storage unavailable')); self.storage_bar.setValue(0)
@@ -2019,7 +2011,7 @@ class Window(QMainWindow):
             rss=int(line.split()[1])/1024
         except (OSError,ValueError,StopIteration,IndexError): pass
         status={True:t('Replay active'),False:t('Replay stopped'),None:t('Recorder unavailable')}[self.active]
-        self.diagnostics.setText('lolreplay 2.2.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
+        self.diagnostics.setText('lolreplay 2.3.0 · '+compositor.detect()+'\n'+status+'\n'+t('Interface RAM: {0} MiB',f'{rss:.1f}')+'\n'+t('Cached thumbnails: {0}',len(self.thumbs)))
 
     def closeEvent(self,event):
         if self.update_panel.busy():
@@ -2068,4 +2060,4 @@ def run_desktop():
 
 if __name__=='__main__':
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
-    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.2.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
+    app=QApplication(sys.argv); app.setStyle('Fusion'); locale=set_language(read_json(UI_CONFIG).get('language','en_US')); QLocale.setDefault(QLocale(locale)); translator=QTranslator(app); translator.load('qtbase_'+locale,QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or translator.load('qtbase_'+locale.split('_')[0],QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)); app.installTranslator(translator); app.setApplicationName('lolreplay'); app.setApplicationVersion('2.3.0'); app.setDesktopFileName('crimson-clips'); sys.exit(run_desktop())
