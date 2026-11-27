@@ -1,7 +1,7 @@
 """Local wallpaper playback. GIF/image frames and silent video are independent of clip playback."""
 from pathlib import Path
 import time
-from PySide6.QtCore import Qt,QObject,QSize,QRect,QUrl,Signal
+from PySide6.QtCore import Qt,QObject,QSize,QRect,QUrl,Signal,QByteArray
 from PySide6.QtGui import QMovie,QImageReader,QPixmap,QPainter,QColor
 from PySide6.QtWidgets import QWidget
 import lolreplay_alive as alive
@@ -45,7 +45,6 @@ class WallpaperSource(QObject):
         if self.sink: self.sink.deleteLater(); self.sink=None
         self.pix=QPixmap(); self.still=QPixmap(); self.last_frame=0.; self.error=False
     def load(self,mode,path,pix=None):
-        if (mode,path)==(self.mode,self.path): return
         self.clear(); self.mode=mode; self.path=path
         if mode=='image':
             self.still=pix if pix is not None else backgrounds.load_image(path); self.pix=self.still
@@ -54,8 +53,9 @@ class WallpaperSource(QObject):
                 if reader.supportsAnimation():
                     size=reader.size()
                     if 0<size.width()*size.height()<=MAX_FRAME_PIXELS:
-                        self.movie=QMovie(str(Path(path).expanduser()),parent=self); self.movie.setCacheMode(QMovie.CacheMode.CacheNone)
-                        self.movie.setScaledSize(size.scaled(QSize(1280,720),Qt.AspectRatioMode.KeepAspectRatio)); self.movie.frameChanged.connect(self.movie_frame); self.movie.finished.connect(self.movie_finished); self.movie.error.connect(self.mark_error)
+                        self.movie=QMovie(str(Path(path).expanduser()),QByteArray(),self); self.movie.setCacheMode(QMovie.CacheMode.CacheNone)
+                        if size.width()>1280 or size.height()>720: self.movie.setScaledSize(size.scaled(QSize(1280,720),Qt.AspectRatioMode.KeepAspectRatio))
+                        self.movie.frameChanged.connect(self.movie_frame); self.movie.finished.connect(self.movie_finished); self.movie.error.connect(self.mark_error)
             else: self.error=True
         elif mode=='video':
             if not valid_file(mode,path): self.error=True
@@ -84,7 +84,7 @@ class WallpaperSource(QObject):
             self.mark_error(); return
         image=frame.toImage()
         if not image.isNull():
-            image=image.scaled(QSize(1280,720),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.FastTransformation)
+            if image.width()>1280 or image.height()>720: image=image.scaled(QSize(1280,720),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.FastTransformation)
             self.pix=QPixmap.fromImage(image); self.last_frame=now; self.changed.emit()
     def sync(self,enabled,speed,fps):
         self.fps=fps; self.speed=speed

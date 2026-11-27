@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.0 — Alive (development)
+
+- Add searchable Animations settings: master switch, hover glow/wash/underline, click ripple/flash/outline, navigation slide/fade/sweep, save pulse/outline, and Replay orbit/particles/scanline/drift. Adjust duration, intensity, curve, frame rate and artwork speed; test and reset effects.
+- Add local image/GIF and supported silent video wallpapers for Replay artwork and the application background, independently. Adjustable speed, frame presentation cap, application wallpaper darkness and scaling. Keep opaque interactive panels and native video surfaces for legibility; local files only.
+- Suspend motion when unfocused, minimized or hidden; optionally suspend during recording. Shared on-demand UI timer, bounded image/video file and frame sizes, no audio output or recorder changes. Decoder FPS is not guaranteed to match the presentation cap. Video support depends on installed Qt multimedia codecs.
+- Store animation and wallpaper preferences separately from Creative Studio profiles. Existing still backgrounds remain compatible. Add model and Qt regression coverage. Runtime validation pending.
+
 ## 2.4.0 — Creative Freedom
 
 - Add Creative Studio on Replay and in Appearance/Display. Preview draft changes, undo/redo, cancel or apply, restore the default layout and save/load/delete up to sixteen local profiles, including widget positions and styles.
