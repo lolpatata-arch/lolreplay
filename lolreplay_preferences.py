@@ -9,7 +9,7 @@ OPTIONS = {
     'single_click_play': (True, False),
     'video_click': (True, False),
     'loop_playback': (False, True),
-    'playback_speed': (100, 50, 75, 125, 150, 200),
+    'playback_speed': (100, 25, 50, 75, 125, 150, 175, 200),
     'seek_seconds': (5, 2, 10, 15),
     'pause_in_background': (False, True),
     'keyboard_shortcuts': (True, False),

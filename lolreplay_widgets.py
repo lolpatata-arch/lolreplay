@@ -1,6 +1,47 @@
 """Shared responsive widgets. Geometry is in Qt logical pixels (HiDPI aware)."""
 from PySide6.QtCore import Qt, QSize, Signal
-from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget, QStackedWidget, QComboBox
+from PySide6.QtWidgets import QScrollArea, QFrame, QSlider, QStyle, QStyleOptionSlider, QCheckBox, QLabel, QHBoxLayout, QWidget, QSizePolicy, QListWidget, QStackedWidget, QComboBox, QPushButton, QMenu
+
+from lolreplay_i18n import t
+from lolreplay_preferences import OPTIONS
+
+
+class PlaybackSpeedButton(QPushButton):
+    """Small, live rate selector shared by inline and fullscreen previews."""
+    def __init__(self, player, change_speed, parent=None):
+        super().__init__(parent)
+        self.player=player
+        self.change_speed=change_speed
+        self.setObjectName('playbackSpeed')
+        self.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Fixed)
+        self.setAccessibleName(t('Playback speed'))
+        menu=QMenu(self)
+        self.rate_actions={}
+        for percent in sorted(OPTIONS['playback_speed']):
+            action=menu.addAction(self.rate_text(percent))
+            action.setCheckable(True)
+            action.triggered.connect(lambda checked=False,value=percent:self.select_rate(value))
+            self.rate_actions[percent]=action
+        self.setMenu(menu)
+        menu.aboutToShow.connect(self.sync_rate)
+        player.playbackRateChanged.connect(self.sync_rate)
+        self.sync_rate()
+
+    @staticmethod
+    def rate_text(percent):
+        return f'{percent/100:g}×'
+
+    def select_rate(self, percent):
+        self.change_speed(percent)
+        self.sync_rate()
+
+    def sync_rate(self, *_):
+        percent=round(self.player.playbackRate()*100)
+        text=self.rate_text(percent)
+        self.setText(text)
+        self.setToolTip(t('Playback speed')+' · '+text)
+        for value,action in self.rate_actions.items():
+            action.setChecked(value==percent)
 
 
 class PageScroll(QScrollArea):
