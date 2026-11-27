@@ -10,7 +10,7 @@ lolreplay is a free, open-source desktop application for saving the moments that
 
 ## Features
 
-- Modular Replay dashboard: six configurable widgets, drag-handle or arrow reordering, three column widths and height presets, hide/add controls, automatic local persistence and factory reset. The command hub is always available. Existing Overdrive arrangement is the default.
+- Modular Replay dashboard: twenty configurable widgets, grouped widget catalog, drag-handle or arrow reordering, three column widths and height presets, hide/add controls, automatic local persistence and factory reset. The command hub is always available. Existing Overdrive arrangement is the default.
 
 - Control Center: searchable settings with direct navigation to real controls, illustrated categories, two live shell previews, switch controls and stepped sliders. All existing settings and configuration files remain compatible.
 

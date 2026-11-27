@@ -465,8 +465,8 @@ class Window(QMainWindow):
             box.addStretch(); return box
         extra('latest','clips',self.open_latest,'Watch')
         self.widget_actions['latest'].setEnabled(False)
-        extra('today','clips',detail=False)
-        week=extra('week','display',detail=False); bars=QHBoxLayout(); bars.setSpacing(4)
+        extra('today','clips'); self.widget_details['today'].setText(t('Saved clips by modification date'))
+        week=extra('week','display'); self.widget_details['week'].setText(t('Saved clips by modification date')); bars=QHBoxLayout(); bars.setSpacing(4)
         for _ in range(7):
             col=QVBoxLayout(); col.setSpacing(3); count=label('0','muted'); count.setAlignment(Qt.AlignmentFlag.AlignCenter); col.addWidget(count)
             bar=QProgressBar(); bar.setOrientation(Qt.Orientation.Vertical); bar.setRange(0,1); bar.setValue(0); bar.setTextVisible(False); bar.setFixedSize(12,64); col.addWidget(bar,0,Qt.AlignmentFlag.AlignHCenter)
@@ -526,11 +526,19 @@ class Window(QMainWindow):
         self.widget_values['size'].setText(self.dashboard_size.text()); self.widget_details['size'].setText(self.dashboard_total.text()+' · '+t('Clips'))
         self.widget_values['games'].setText(str(summary['games'])); self.widget_details['games'].setText(t('Game not detected') if not summary['games'] else '')
         self.widget_values['top_game'].setText(summary['top_game'] or t('Game not detected')); self.widget_details['top_game'].setText(clip_count(summary['top_count'])); self.widget_actions['top_game'].setEnabled(bool(summary['top_game']))
-        longest=summary['longest']; self.widget_values['longest'].setText(library.duration_text(summary['longest_duration']) if longest else '—')
-        self.widget_details['longest'].setText(Path(longest[0]).stem if longest else t('Indexing durations…') if self.probe_queue or self.probe_current else t('No recordings yet')); self.widget_actions['longest'].setEnabled(bool(longest))
+        self.update_widget_longest()
         key=files[0] if files else None; self.widget_values['latest'].setText(Path(key[0]).stem if key else t('No recordings yet'))
         self.widget_details['latest'].setText(QLocale().toString(QDateTime.fromMSecsSinceEpoch(key[1]//1000000),'dd MMM · HH:mm') if key else '')
         self.widget_actions['latest'].setEnabled(bool(key))
+
+    def update_widget_longest(self,key=None,seconds=None):
+        summary=self.widget_summary
+        if key is not None and seconds is not None and (summary.get('longest_duration') is None or seconds>summary['longest_duration']):
+            summary['longest']=key; summary['longest_duration']=seconds
+        longest=summary.get('longest')
+        self.widget_values['longest'].setText(library.duration_text(summary['longest_duration']) if longest else '—')
+        self.widget_details['longest'].setText(Path(longest[0]).stem if longest else t('Indexing durations…') if self.probe_queue or self.probe_current else '—')
+        self.widget_actions['longest'].setEnabled(bool(longest))
 
     def sync_widget_capture(self):
         for key,value,detail in (('quality',self.perf_status.text(),self.capture_specs.text()),('audio',self.routing_status.text(),self.output_status.text()),('mic',self.capture_audio.text(),self.mic_status.text()),('buffer',self.dashboard_history.text(),self.buffer_status.text()),('duration',self.format_duration_label(self.duration),self.window_caption.text()),('quick_save',self.format_duration_label(self.duration),self.state.text()),('hotkey',self.global_key or '—',self.window_hint.text())):
@@ -2058,7 +2066,7 @@ class Window(QMainWindow):
                         if it.data(Qt.ItemDataRole.UserRole)==key[0]:
                             it.setText(it.text()+' · '+library.duration_text(seconds)); break
             if self.length_filter.currentData(): self.filter_library(self.search.text())
-            self.update_widget_library(force=True)
+            self.update_widget_longest(key,seconds)
         QTimer.singleShot(250,self.next_thumbnail)
 
     def duration_error(self,error):

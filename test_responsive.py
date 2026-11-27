@@ -123,7 +123,7 @@ for locale in LANGUAGES:
     set_language(locale); w=ui.Window(); w.show(); app.processEvents()
     try:
         assert w.settings_stack.count()==11
-        assert len(w.dashboard_cards)==4 and len(w.widgets_by_id)==6
+        assert len(w.dashboard_cards)==4 and len(w.widgets_by_id)==20
         assert w.hub.objectName()=='commandHub' and w.dock.objectName()=='bottomDock'
         assert len(w.nav)==4 and all(b.parentWidget()==w.dock for b in w.nav)
         assert w.outer_layout.itemAt(0).widget()==w.hub
@@ -161,6 +161,18 @@ for locale in LANGUAGES:
         assert w.dashboard_favorite_card.isVisible() and w.dashboard_storage_card.isVisible()
         assert w.widget_favorite_count.text()==w.dashboard_favorites.text()
         assert w.widget_disk.text()==w.disk.text()
+        for key in dashboard.IDS[6:]: w.change_dashboard_widget(key,visible=True)
+        app.processEvents()
+        assert all(card.isVisible() for card in w.widgets_by_id.values())
+        assert w.widget_values['size'].text()==w.dashboard_size.text()
+        assert w.widget_values['hotkey'].text()==(w.global_key or '—')
+        assert w.widget_actions['quick_save'].isEnabled()==w.save_btn.isEnabled()
+        assert w.widget_actions['mic'].isEnabled()==w.mic_btn.isEnabled()
+        assert w.widget_values['duration'].text()==w.format_duration_label(w.duration)
+        assert w.widget_values['buffer'].text()==w.dashboard_history.text()
+        assert w.widget_actions['latest'].isEnabled()==bool(w.snapshot)
+        assert len(w.widget_activity)==7
+        assert w.widget_values['today'].text()==str(w.widget_summary['counts'][-1])
         assert ui.read_json(ui.UI_CONFIG)['dashboard_layout']==w.dashboard_layout
         for key in dashboard.IDS: w.change_dashboard_widget(key,visible=False)
         assert not w.widget_empty.isHidden() and w.overview_layout.count()==0
