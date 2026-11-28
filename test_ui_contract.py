@@ -22,9 +22,9 @@ class UIContractTests(unittest.TestCase):
         self.assertLess(source.index(setting),source.index('from PySide6'))
 
     def test_release_version(self):
-        self.assertIn("setApplicationVersion('2.5.1')",(ROOT/'lolreplay-ui').read_text())
-        self.assertIn("self.footer_meta.setText('v2.5.1",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("setApplicationVersion('2.6.0')",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("self.footer_meta.setText('v2.6.0",(ROOT/'lolreplay-ui').read_text())
         # Keep the release updater baseline unchanged until 1.3 is published.
-        self.assertIn("print('lolreplay 2.5.1')",(ROOT/'lolreplay').read_text())
+        self.assertIn("print('lolreplay 2.6.0')",(ROOT/'lolreplay').read_text())
 
 if __name__=='__main__': unittest.main()

@@ -4,13 +4,15 @@
 
 <h1 align="center">lolreplay</h1>
 <p align="center"><strong>No cloud. Just clips.</strong></p>
-<p align="center">Local instant replay for Linux / Wayland · v2.5.1 · MIT-licensed software</p>
+<p align="center">Local instant replay for Linux / Wayland · v2.6.0 · MIT-licensed software</p>
 
 lolreplay is a free, open-source desktop application for saving the moments that matter while gaming on Linux. It uses GPU Screen Recorder for capture and FFmpeg for local editing. No accounts, ads, uploads, subscriptions or watermarks. Your recordings stay on your machine.
 
 Playback defaults to Qt's PulseAudio-compatible backend (including on PipeWire). Advanced users may override `QT_AUDIO_BACKEND` when launching the GUI.
 
 ## Features
+
+- SOUND CONTROL: independent playback device selection with automatic fallback, clip audio track selection, optional decoded peak meter and on-demand desktop application volume/mute mixer. Existing capture and export controls remain independent.
 
 - ALIVE: master animation switch, independent hover/click/navigation/save and ambient artwork effects, adjustable duration, intensity, easing, speed and render frame rate. Local still images, animated GIFs and backend-supported silent videos in Replay artwork or the application background. Motion pauses when unfocused or hidden; optional pause while recording. No new dependencies.
 
