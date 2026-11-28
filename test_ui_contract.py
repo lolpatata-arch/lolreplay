@@ -14,10 +14,17 @@ class UIContractTests(unittest.TestCase):
         for name in calls:
             self.assertTrue(callable(getattr(compositor,name,None)),name)
 
+    def test_audio_backend_before_qt_imports(self):
+        source=(ROOT/'lolreplay-ui').read_text()
+        setting="os.environ.setdefault('QT_AUDIO_BACKEND', 'pulseaudio')"
+        self.assertIn(setting,source)
+        self.assertLess(source.index(setting),source.index('import lolreplay_preferences'))
+        self.assertLess(source.index(setting),source.index('from PySide6'))
+
     def test_release_version(self):
-        self.assertIn("setApplicationVersion('2.5.0')",(ROOT/'lolreplay-ui').read_text())
-        self.assertIn("self.footer_meta.setText('v2.5.0",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("setApplicationVersion('2.5.1')",(ROOT/'lolreplay-ui').read_text())
+        self.assertIn("self.footer_meta.setText('v2.5.1",(ROOT/'lolreplay-ui').read_text())
         # Keep the release updater baseline unchanged until 1.3 is published.
-        self.assertIn("print('lolreplay 2.5.0')",(ROOT/'lolreplay').read_text())
+        self.assertIn("print('lolreplay 2.5.1')",(ROOT/'lolreplay').read_text())
 
 if __name__=='__main__': unittest.main()
