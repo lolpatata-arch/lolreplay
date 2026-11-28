@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.1 — Audio Hotfix
+
+- Default the Qt interface to the PulseAudio-compatible backend before importing Qt multimedia, including when launched directly. Explicit QT_AUDIO_BACKEND overrides remain supported.
+- Fix playback routed to the wrong headphones on the reported Arch/PipeWire setup. The maintainer confirmed playback using the same environment override. Other audio configurations and full regression tests still require validation.
+- No changes to recording, audio capture, clip files, buffer management or existing settings.
+
 ## 2.5.0 — Alive
 
 - Add searchable Animations settings: master switch, hover glow/wash/underline, click ripple/flash/outline, navigation slide/fade/sweep, save pulse/outline, and Replay orbit/particles/scanline/drift. Adjust duration, intensity, curve, frame rate and artwork speed; test and reset effects.
