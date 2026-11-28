@@ -3626,7 +3626,7 @@ CATALOG.update({row[0]:dict(zip(list(LANGUAGES)[1:],row[1:])) for row in [["Anim
 
 CATALOG.setdefault('Wallpaper panel opacity',dict(zip(list(LANGUAGES)[1:],['Opacidad de paneles sobre el fondo','Opacité des panneaux sur le fond','Panel-Deckkraft über dem Hintergrund','Непрозрачность панелей над обоями','Krycie paneli na tapecie','壁紙上のパネル不透明度','壁纸上面板不透明度','Opacità pannelli sullo sfondo'])))
 
-# Sound Control: Spanish translations; existing locales retain their fallback.
+# Sound Control: Spanish translations and explicit English fallback for other locales.
 for _key,_value in {
   "Playback audio": "Audio de reproducción",
   "Playback output": "Salida de reproducción",
@@ -3647,4 +3647,7 @@ for _key,_value in {
   "Application names, comma separated (up to eight):": "Nombres de aplicaciones, separados por comas (hasta ocho):",
   "Choose at least one application": "Elige al menos una aplicación"
 }.items():
-    CATALOG.setdefault(_key,{}).setdefault('es_ES',_value)
+    _entry=CATALOG.setdefault(_key,{})
+    _entry.setdefault('es_ES',_value)
+    for _locale in LANGUAGES:
+        if _locale!='en_US': _entry.setdefault(_locale,_key)
