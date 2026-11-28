@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.6.0 — Sound Control (development)
+
+- Choose independent playback output for library and editor, follow system default or keep an explicit device with fallback if disconnected. Qt device change notifications; no capture restart.
+- Select a recorded audio track in the library. Optional decoded audio peak meter on compatible Qt/FFmpeg playback backends, capped at ten updates per second. Existing editor track gains apply to export; preview plays one track at a time.
+- On-demand application mixer for active desktop playback streams (volume and mute); changes affect the desktop, not isolated recording gains. No background polling. Add selected-applications-only mode to capture settings.
+- Retain PulseAudio-compatible Qt playback default and preserve recording engine, existing clips and configuration. Real desktop testing pending.
+
 ## 2.5.1 — Audio Hotfix
 
 - Default the Qt interface to the PulseAudio-compatible backend before importing Qt multimedia, including when launched directly. Explicit QT_AUDIO_BACKEND overrides remain supported.
